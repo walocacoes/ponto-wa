@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PontoWA — Jizany</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+  :root {
+    --bg:#0F1117;--surface:#1A1D27;--surface2:#222636;--border:#2E3347;
+    --accent:#6C63FF;--accent2:#9D96FF;--green:#22C55E;--red:#EF4444;
+    --yellow:#F59E0B;--text:#E8EAF0;--text2:#8B8FA8;--text3:#5A5E75;
+    --radius:14px;--radius-sm:8px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+  nav{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:100;}
+  .nav-logo{font-size:18px;font-weight:700;letter-spacing:-0.5px;}
+  .nav-logo span{color:var(--accent2);}
+  .nav-tabs{display:flex;gap:4px;background:var(--bg);padding:4px;border-radius:10px;}
+  .nav-tab{padding:7px 16px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;color:var(--text2);border:none;background:transparent;transition:all .2s;font-family:'Inter',sans-serif;}
+  .nav-tab.active{background:var(--accent);color:#fff;}
+  .nav-tab:hover:not(.active){color:var(--text);background:var(--surface2);}
+  .nav-time{font-size:13px;color:var(--text2);font-variant-numeric:tabular-nums;}
+  .view{display:none;padding:28px 24px;max-width:900px;margin:0 auto;}
+  .view.active{display:block;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:16px;}
+  .card-title{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);margin-bottom:16px;}
+  .employee-select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;color:var(--text);font-family:'Inter',sans-serif;font-size:15px;margin-bottom:20px;outline:none;}
+  .employee-select:focus{border-color:var(--accent);}
+  .punch-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .punch-btn{display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px 16px;border-radius:var(--radius);border:1.5px solid var(--border);background:var(--surface2);cursor:pointer;transition:all .2s;font-family:'Inter',sans-serif;}
+  .punch-btn:hover{border-color:var(--accent);transform:translateY(-1px);}
+  .punch-btn.done{border-color:var(--green);background:#16311f;}
+  .punch-btn.done .punch-icon{color:var(--green);}
+  .punch-btn .punch-icon{font-size:26px;}
+  .punch-btn .punch-label{font-size:13px;font-weight:600;color:var(--text);letter-spacing:.2px;}
+  .punch-btn .punch-time{font-size:11px;color:var(--text2);font-variant-numeric:tabular-nums;height:14px;}
+  .punch-btn:active{transform:scale(.97);}
+  .status-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;}
+  .chip{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:100px;font-size:12px;font-weight:500;}
+  .chip-green{background:#16311f;color:var(--green);}
+  .chip-red{background:#2d1515;color:var(--red);}
+  .chip-yellow{background:#2d2310;color:var(--yellow);}
+  .chip-blue{background:#1a1f3c;color:var(--accent2);}
+  .chip::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;}
+  .table-wrap{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;padding:10px 12px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{padding:12px 12px;border-bottom:1px solid var(--border);color:var(--text);white-space:nowrap;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:var(--surface2);}
+  .badge{display:inline-block;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600;}
+  .badge-green{background:#16311f;color:var(--green);}
+  .badge-red{background:#2d1515;color:var(--red);}
+  .badge-yellow{background:#2d2310;color:var(--yellow);}
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px;}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
+  .stat-label{font-size:12px;color:var(--text2);font-weight:500;margin-bottom:10px;}
+  .stat-value{font-size:28px;font-weight:700;letter-spacing:-1px;line-height:1;}
+  .stat-sub{font-size:11px;color:var(--text3);margin-top:6px;}
+  .stat-green{color:var(--green);}.stat-red{color:var(--red);}.stat-yellow{color:var(--yellow);}.stat-accent{color:var(--accent2);}
+  .emp-row{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);}
+  .emp-row:last-child{border-bottom:none;}
+  .emp-avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;}
+  .emp-name{font-size:14px;font-weight:600;}
+  .emp-stats{margin-left:auto;text-align:right;}
+  .emp-hours{font-size:14px;font-weight:600;}
+  .emp-faltas{font-size:11px;color:var(--text2);margin-top:2px;}
+  #toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 20px;font-size:14px;font-weight:500;z-index:999;transition:transform .35s cubic-bezier(.34,1.56,.64,1);box-shadow:0 8px 32px rgba(0,0,0,.4);white-space:nowrap;}
+  #toast.show{transform:translateX(-50%) translateY(0);}
+  #toast.success{border-color:var(--green);color:var(--green);}
+  #toast.error{border-color:var(--red);color:var(--red);}
+  .month-row{display:flex;align-items:center;gap:12px;margin-bottom:20px;}
+  .month-row select{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 14px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;outline:none;flex:1;}
+  .section-title{font-size:20px;font-weight:700;margin-bottom:4px;letter-spacing:-.4px;}
+  .section-sub{font-size:13px;color:var(--text2);margin-bottom:24px;}
+  .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center;}
+  .modal-bg.open{display:flex;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;max-width:340px;width:90%;text-align:center;}
+  .modal h3{font-size:17px;margin-bottom:8px;}
+  .modal p{font-size:14px;color:var(--text2);margin-bottom:24px;line-height:1.5;}
+  .modal-time{font-size:36px;font-weight:700;color:var(--accent2);letter-spacing:-1px;margin:16px 0;}
+  .modal-actions{display:flex;gap:10px;}
+  .modal-actions button{flex:1;padding:12px;border-radius:var(--radius-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;cursor:pointer;border:1px solid var(--border);transition:all .15s;}
+  .btn-confirm{background:var(--accent);color:#fff;border-color:var(--accent)!important;}
+  .btn-confirm:hover{background:#7c75ff;}
+  .btn-cancel{background:transparent;color:var(--text2);}
+  .btn-cancel:hover{background:var(--surface2);color:var(--text);}
+  .loading{text-align:center;padding:32px;color:var(--text3);font-size:13px;}
+  @media(max-width:600px){nav{flex-wrap:wrap;gap:10px;}.nav-tabs{order:3;width:100%;justify-content:center;}}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-logo">Ponto<span>WA</span></div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showView('registrar',this)">Registrar</button>
+    <button class="nav-tab" onclick="showView('historico',this)">Histórico</button>
+    
+  </div>
+  <div class="nav-time" id="clock">--:--:--</div>
+</nav>
+
+<div class="view active" id="view-registrar">
+  <div class="section-title">Bater ponto</div>
+  <div class="section-sub" id="today-label"></div>
+  <div class="card">
+    <div class="card-title">Funcionário</div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;color:#6C63FF;font-size:15px;font-weight:600;margin-bottom:20px;">Jizany Gomes da Silva</div>
+    <input type="hidden" id="emp-select" value="F01">
+    <div class="punch-grid">
+      <button class="punch-btn" id="btn-entrada" onclick="openModal('entrada')">
+        <span class="punch-icon">🟢</span><span class="punch-label">Entrada</span><span class="punch-time" id="time-entrada"></span>
+      </button>
+      <button class="punch-btn" id="btn-saida_almoco" onclick="openModal('saida_almoco')">
+        <span class="punch-icon">🍽️</span><span class="punch-label">Saída Almoço</span><span class="punch-time" id="time-saida_almoco"></span>
+      </button>
+      <button class="punch-btn" id="btn-retorno_almoco" onclick="openModal('retorno_almoco')">
+        <span class="punch-icon">☕</span><span class="punch-label">Retorno Almoço</span><span class="punch-time" id="time-retorno_almoco"></span>
+      </button>
+      <button class="punch-btn" id="btn-saida" onclick="openModal('saida')">
+        <span class="punch-icon">🔴</span><span class="punch-label">Saída</span><span class="punch-time" id="time-saida"></span>
+      </button>
+    </div>
+    <div class="status-row" id="status-row"></div>
+  </div>
+</div>
+
+<div class="view" id="view-historico">
+  <div class="section-title">Histórico</div>
+  <div class="section-sub" id="hist-emp-label">Selecione um funcionário</div>
+  <div class="month-row"><select id="hist-month" onchange="renderHistorico()"></select></div>
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Data</th><th>Entrada</th><th>S. Almoço</th><th>R. Almoço</th><th>Saída</th><th>H. Trabalhadas</th><th>Saldo</th><th>Status</th></tr></thead>
+        <tbody id="hist-body"><tr><td colspan="8" class="loading">Carregando...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="view" id="view-dashboard">
+  <div class="section-title">Dashboard</div>
+  <div class="section-sub">Resumo — <span id="dash-month-label"></span></div>
+  <div class="month-row"><select id="dash-month" onchange="renderDashboard()"></select></div>
+  <div class="stats-grid" id="stats-grid"></div>
+  <div class="card"><div class="card-title">Funcionários</div><div id="emp-list"></div></div>
+</div>
+
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h3 id="modal-title">Confirmar</h3><p id="modal-desc"></p>
+    <div class="modal-time" id="modal-time">--:--</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn-confirm" onclick="confirmPunch()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="pwd-modal-bg">
+  <div class="modal">
+    <h3>Área restrita</h3><p>Acesso exclusivo para gestão.</p>
+    <input id="pwd-input" type="password" placeholder="Senha"
+      style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:13px 16px;color:var(--text);font-family:Inter,sans-serif;font-size:15px;outline:none;margin:16px 0;letter-spacing:2px;"
+      onkeydown="if(event.key==='Enter')confirmPassword()">
+    <div id="pwd-error" style="color:var(--red);font-size:12px;min-height:16px;margin-bottom:12px;"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closePwdModal()">Cancelar</button>
+      <button class="btn-confirm" onclick="confirmPassword()">Entrar</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
+
+const firebaseConfig = { apiKey: "AIzaSyCaIDSapH5BVAEKFvK352ktJUT4wrmbvxQ",
+    authDomain: "ponto-wa.firebaseapp.com",
+    projectId: "ponto-wa",
+    storageBucket: "ponto-wa.firebasestorage.app",
+    messagingSenderId: "557019570825",
+    appId: "1:557019570825:web:4fa5fa4456b0c10aa65c58"  };
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const JORNADA_H = 8;
+const DASHBOARD_PWD = 'wa2026';
+const IS_GESTAO = false;
+const FUNCIONARIOS = [
+  { id: "F01", nome: "Jizany Gomes da Silva", cor: "#6C63FF", bg: "#1a1730" },
+  { id: "F02", nome: "Emanuella Rodrigues Noleto", cor: "#22C55E", bg: "#16311f" },
+  { id: "F03", nome: "Alessandro Santos Rolin", cor: "#F59E0B", bg: "#2d2310" }
+];
+
+function pad(n){return String(n).padStart(2,'0');}
+function nowStr(){const n=new Date();return pad(n.getHours())+':'+pad(n.getMinutes());}
+function todayStr(){const n=new Date();return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate());}
+function formatDate(s){const[y,m,d]=s.split('-');const days=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];return days[new Date(y,m-1,d).getDay()]+', '+d+'/'+m+'/'+y;}
+function monthLabel(s){const months=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];const[y,m]=s.split('-');return months[parseInt(m)-1]+' '+y;}
+function timeToMin(t){if(!t)return null;const[h,m]=t.split(':').map(Number);return h*60+m;}
+function minToHHMM(min){const h=Math.floor(Math.abs(min)/60),m=Math.abs(min)%60;return(min<0?'-':'')+pad(h)+'h'+pad(m);}
+function calcHoras(rec){const e=timeToMin(rec.entrada),s=timeToMin(rec.saida),sa=timeToMin(rec.saida_almoco),ra=timeToMin(rec.retorno_almoco);if(!e||!s)return 0;let t=s-e;if(sa&&ra)t-=(ra-sa);return t/60;}
+function isWeekend(d){const[y,m,dd]=d.split('-').map(Number);const w=new Date(y,m-1,dd).getDay();return w===0||w===6;}
+
+setInterval(()=>{const n=new Date();document.getElementById('clock').textContent=pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());},1000);
+
+async function getRecord(empId,date){try{const s=await getDoc(doc(db,'ponto',empId+'_'+date));return s.exists()?s.data():{};}catch{return{};}}
+async function saveRecord(empId,date,rec){await setDoc(doc(db,'ponto',empId+'_'+date),rec,{merge:true});}
+async function getMonthRecords(empId,month){
+  try{
+    const snap=await getDocs(collection(db,'ponto'));
+    const r={};
+    snap.forEach(d=>{if(d.id.startsWith(empId+'_')){const date=d.id.slice(empId.length+1);if(date.startsWith(month))r[date]=d.data();}});
+    return r;
+  }catch{return{};}
+}
+async function getAllMonthRecords(month){
+  try{
+    const snap=await getDocs(collection(db,'ponto'));
+    const r={};
+    snap.forEach(d=>{const parts=d.id.split('_');if(parts.length===2&&parts[1].startsWith(month)){if(!r[parts[0]])r[parts[0]]={};r[parts[0]][parts[1]]=d.data();}});
+    return r;
+  }catch{return{};}
+}
+
+function initMonthSelects(){
+  const months=[];
+  for(let i=0;i<6;i++){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);months.push(d.getFullYear()+'-'+pad(d.getMonth()+1));}
+  ['hist-month','dash-month'].forEach(id=>{const el=document.getElementById(id);if(!el)return;months.forEach((m,i)=>{const o=document.createElement('option');o.value=m;o.textContent=monthLabel(m);if(i===0)o.selected=true;el.appendChild(o);});});
+  document.getElementById('today-label').textContent=formatDate(todayStr());
+  if(IS_GESTAO){FUNCIONARIOS.forEach(f=>{const o=document.createElement('option');o.value=f.id;o.textContent=f.nome;document.getElementById('emp-select').appendChild(o);});}
+}
+
+window.showView=function(name,btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  if(btn)btn.classList.add('active');
+  if(name==='historico')renderHistorico();
+  if(name==='dashboard')renderDashboard();
+};
+
+const MARCACOES={entrada:{label:'Entrada',desc:'Marcar chegada'},saida_almoco:{label:'Saída para Almoço',desc:'Saindo para almoço'},retorno_almoco:{label:'Retorno do Almoço',desc:'Voltando do almoço'},saida:{label:'Saída',desc:'Encerrando o dia'}};
+const ORDER=['entrada','saida_almoco','retorno_almoco','saida'];
+let pendingType=null;
+
+window.loadTodayRecord=async function(){
+  const empId=document.getElementById('emp-select').value;
+  if(!empId){resetPunchBtns();return;}
+  const rec=await getRecord(empId,todayStr());
+  ORDER.forEach(k=>{const te=document.getElementById('time-'+k),btn=document.getElementById('btn-'+k);if(rec[k]){te.textContent=rec[k];btn.classList.add('done');}else{te.textContent='';btn.classList.remove('done');}});
+  updateStatusRow(rec);
+  const f=FUNCIONARIOS.find(f=>f.id===empId);
+  if(f)document.getElementById('hist-emp-label').textContent=f.nome;
+};
+
+function resetPunchBtns(){ORDER.forEach(k=>{document.getElementById('time-'+k).textContent='';document.getElementById('btn-'+k).classList.remove('done');});document.getElementById('status-row').innerHTML='';}
+function updateStatusRow(rec){
+  const chips=[];
+  if(rec.entrada)chips.push('<span class="chip chip-green">Entrou '+rec.entrada+'</span>');
+  if(rec.saida_almoco)chips.push('<span class="chip chip-yellow">Almoço '+rec.saida_almoco+'</span>');
+  if(rec.retorno_almoco)chips.push('<span class="chip chip-blue">Retornou '+rec.retorno_almoco+'</span>');
+  if(rec.saida){const h=calcHoras(rec);chips.push('<span class="chip chip-'+(h>=JORNADA_H?'green':'red')+'">Saiu '+rec.saida+' · '+h.toFixed(1)+'h</span>');}
+  document.getElementById('status-row').innerHTML=chips.join('');
+}
+
+window.openModal=function(type){
+  const empId=document.getElementById('emp-select').value;
+  if(!empId){showToast('Selecione um funcionário primeiro','error');return;}
+  pendingType=type;
+  const m=MARCACOES[type];
+  document.getElementById('modal-title').textContent=m.label;
+  document.getElementById('modal-desc').textContent=m.desc;
+  document.getElementById('modal-time').textContent=nowStr();
+  document.getElementById('modal-bg').classList.add('open');
+  window._mi=setInterval(()=>{if(document.getElementById('modal-bg').classList.contains('open'))document.getElementById('modal-time').textContent=nowStr();},1000);
+};
+window.closeModal=function(){clearInterval(window._mi);document.getElementById('modal-bg').classList.remove('open');pendingType=null;};
+window.confirmPunch=async function(){
+  const empId=document.getElementById('emp-select').value;
+  const time=document.getElementById('modal-time').textContent;
+  const pt=pendingType;
+  closeModal();
+  if(!pt)return;
+  const rec=await getRecord(empId,todayStr());
+  for(let i=0;i<ORDER.indexOf(pt);i++){if(!rec[ORDER[i]]){showToast('Registre primeiro: '+MARCACOES[ORDER[i]].label,'error');return;}}
+  if(rec[pt]){showToast('Esse horário já foi registrado','error');return;}
+  rec[pt]=time;
+  await saveRecord(empId,todayStr(),rec);
+  await loadTodayRecord();
+  showToast('✓ '+MARCACOES[pt].label+' registrada às '+time,'success');
+};
+
+async function renderHistorico(){
+  const empId=document.getElementById('emp-select').value;
+  const month=document.getElementById('hist-month').value;
+  const tbody=document.getElementById('hist-body');
+  if(!empId){tbody.innerHTML='<tr><td colspan="8" class="loading">Selecione um funcionário na tela Registrar</td></tr>';return;}
+  tbody.innerHTML='<tr><td colspan="8" class="loading">Carregando...</td></tr>';
+  const records=await getMonthRecords(empId,month);
+  const dates=Object.keys(records).sort();
+  if(!dates.length){tbody.innerHTML='<tr><td colspan="8" class="loading">Nenhum registro encontrado</td></tr>';return;}
+  tbody.innerHTML=dates.map(date=>{
+    const rec=records[date],horas=calcHoras(rec),saldo=horas-JORNADA_H;
+    const complete=rec.entrada&&rec.saida_almoco&&rec.retorno_almoco&&rec.saida;
+    let status='';
+    if(!rec.entrada)status='<span class="badge badge-red">Falta</span>';
+    else if(!complete)status='<span class="badge badge-yellow">Incompleto</span>';
+    else if(saldo>=0)status='<span class="badge badge-green">OK</span>';
+    else status='<span class="badge badge-yellow">Banco neg.</span>';
+    const sc=saldo>=0?'var(--green)':'var(--red)';
+    return '<tr><td>'+formatDate(date)+'</td><td>'+(rec.entrada||'—')+'</td><td>'+(rec.saida_almoco||'—')+'</td><td>'+(rec.retorno_almoco||'—')+'</td><td>'+(rec.saida||'—')+'</td><td>'+(horas>0?horas.toFixed(1)+'h':'—')+'</td><td style="color:'+sc+';font-weight:600">'+(horas>0?(saldo>=0?'+':'')+saldo.toFixed(1)+'h':'—')+'</td><td>'+status+'</td></tr>';
+  }).join('');
+}
+
+async function renderDashboard(){
+  const month=document.getElementById('dash-month').value;
+  document.getElementById('dash-month-label').textContent=monthLabel(month);
+  document.getElementById('emp-list').innerHTML='<div class="loading">Carregando...</div>';
+  const allData=await getAllMonthRecords(month);
+  let tF=0,tE=0,tN=0,tR=0;
+  const stats=FUNCIONARIOS.map(f=>{
+    const ed=allData[f.id]||{};
+    const dias=Object.keys(ed).filter(d=>!isWeekend(d));
+    let hT=0,fa=0,sM=0;
+    dias.forEach(d=>{tR++;const rec=ed[d];if(!rec.entrada){fa++;return;}const h=calcHoras(rec);hT+=h;sM+=(h-JORNADA_H)*60;});
+    tF+=fa;if(sM>0)tE+=sM;else tN+=Math.abs(sM);
+    return{f,hT,fa,sM,dias:dias.length};
+  });
+  document.getElementById('stats-grid').innerHTML=
+    '<div class="stat-card"><div class="stat-label">Registros no mês</div><div class="stat-value stat-accent">'+tR+'</div><div class="stat-sub">lançamentos</div></div>'+
+    '<div class="stat-card"><div class="stat-label">Total de Faltas</div><div class="stat-value '+(tF>0?'stat-red':'stat-green')+'">'+tF+'</div><div class="stat-sub">no mês</div></div>'+
+    '<div class="stat-card"><div class="stat-label">H. Extra acumulada</div><div class="stat-value stat-green">'+minToHHMM(tE)+'</div><div class="stat-sub">todos os funcionários</div></div>'+
+    '<div class="stat-card"><div class="stat-label">Banco negativo</div><div class="stat-value '+(tN>0?'stat-red':'stat-green')+'">'+minToHHMM(tN)+'</div><div class="stat-sub">a compensar</div></div>';
+  document.getElementById('emp-list').innerHTML=stats.map(({f,hT,fa,sM,dias})=>{
+    const ini=f.nome.split(' ').slice(0,2).map(w=>w[0]).join('');
+    const sl=(sM>=0?'+':'')+minToHHMM(sM),sc=sM>=0?'var(--green)':'var(--red)';
+    return '<div class="emp-row"><div class="emp-avatar" style="background:'+f.bg+';color:'+f.cor+'">'+ini+'</div><div><div class="emp-name">'+f.nome+'</div></div><div class="emp-stats"><div class="emp-hours">'+hT.toFixed(1)+'h <span style="font-size:11px;color:'+sc+'">'+( dias>0?sl:'')+'</span></div><div class="emp-faltas">'+(fa===0?'✓ Sem faltas':fa+' falta'+(fa>1?'s':''))+'</div></div></div>';
+  }).join('');
+}
+
+window.askPassword=function(){document.getElementById('pwd-input').value='';document.getElementById('pwd-error').textContent='';document.getElementById('pwd-modal-bg').classList.add('open');setTimeout(()=>document.getElementById('pwd-input').focus(),100);};
+window.closePwdModal=function(){document.getElementById('pwd-modal-bg').classList.remove('open');};
+window.confirmPassword=function(){
+  if(document.getElementById('pwd-input').value===DASHBOARD_PWD){
+    closePwdModal();
+    document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+    const tabs=document.querySelectorAll('.nav-tab');tabs[tabs.length-1].classList.add('active');
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.getElementById('view-dashboard').classList.add('active');
+    renderDashboard();
+  }else{document.getElementById('pwd-error').textContent='Senha incorreta.';document.getElementById('pwd-input').value='';document.getElementById('pwd-input').focus();}
+};
+
+window.showToast=function(msg,type='success'){const t=document.getElementById('toast');t.textContent=msg;t.className=type;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);};
+
+initMonthSelects();
+loadTodayRecord();
+</script>
+</body>
+</html>
