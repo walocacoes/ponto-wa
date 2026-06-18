@@ -282,12 +282,45 @@ window.openModal=function(type){
   window._mi=setInterval(()=>{if(document.getElementById('modal-bg').classList.contains('open'))document.getElementById('modal-time').textContent=nowStr();},1000);
 };
 window.closeModal=function(){clearInterval(window._mi);document.getElementById('modal-bg').classList.remove('open');pendingType=null;};
+// ── geolocalização ──
+const LOJA_LAT = -7.1993882;
+const LOJA_LNG = -48.2006401;
+const RAIO_M   = 100;
+
+function distancia(lat1,lng1,lat2,lng2){
+  const R=6371000,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function getPosicao(){
+  return new Promise((res,rej)=>{
+    if(!navigator.geolocation){rej(new Error('GPS não disponível neste dispositivo'));return;}
+    navigator.geolocation.getCurrentPosition(res,rej,{enableHighAccuracy:true,timeout:10000});
+  });
+}
+
 window.confirmPunch=async function(){
   const empId=document.getElementById('emp-select').value;
   const time=document.getElementById('modal-time').textContent;
   const pt=pendingType;
   closeModal();
   if(!pt)return;
+
+  // verificar localização
+  showToast('Verificando localização...','success');
+  try{
+    const pos=await getPosicao();
+    const dist=distancia(pos.coords.latitude,pos.coords.longitude,LOJA_LAT,LOJA_LNG);
+    if(dist>RAIO_M){
+      showToast('Fora do alcance da loja ('+Math.round(dist)+'m)','error');
+      return;
+    }
+  }catch(e){
+    showToast('Não foi possível verificar localização: '+e.message,'error');
+    return;
+  }
+
   const rec=await getRecord(empId,todayStr());
   for(let i=0;i<ORDER.indexOf(pt);i++){if(!rec[ORDER[i]]){showToast('Registre primeiro: '+MARCACOES[ORDER[i]].label,'error');return;}}
   if(rec[pt]){showToast('Esse horário já foi registrado','error');return;}
