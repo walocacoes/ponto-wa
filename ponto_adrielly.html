@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PontoWA — Gestão</title>
+<title>PontoWA — Adrielly</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
   :root {
@@ -97,7 +97,7 @@
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showView('registrar',this)">Registrar</button>
     <button class="nav-tab" onclick="showView('historico',this)">Histórico</button>
-    <button class="nav-tab" onclick="askPassword()">Dashboard</button>
+    
   </div>
   <div class="nav-time" id="clock">--:--:--</div>
 </nav>
@@ -107,9 +107,8 @@
   <div class="section-sub" id="today-label"></div>
   <div class="card">
     <div class="card-title">Funcionário</div>
-    <select class="employee-select" id="emp-select" onchange="loadTodayRecord()">
-      <option value="">Selecione o funcionário...</option>
-    </select>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;color:#EC4899;font-size:15px;font-weight:600;margin-bottom:20px;">Adrielly Rodrigues Noleto</div>
+    <input type="hidden" id="emp-select" value="F04">
     <div class="punch-grid">
       <button class="punch-btn" id="btn-entrada" onclick="openModal('entrada')">
         <span class="punch-icon">🟢</span><span class="punch-label">Entrada</span><span class="punch-time" id="time-entrada"></span>
@@ -191,7 +190,7 @@ const db = getFirestore(app);
 
 const JORNADA_H = 8;
 const DASHBOARD_PWD = 'wa2026';
-const IS_GESTAO = true;
+const IS_GESTAO = false;
 const FUNCIONARIOS = [
   { id: "F01", nome: "Jizany Gomes da Silva", cor: "#6C63FF", bg: "#1a1730" },
   { id: "F02", nome: "Emanuella Rodrigues Noleto", cor: "#22C55E", bg: "#16311f" },
