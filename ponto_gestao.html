@@ -97,7 +97,7 @@
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showView('registrar',this)">Registrar</button>
     <button class="nav-tab" onclick="showView('historico',this)">Histórico</button>
-    <button class="nav-tab" onclick="askPassword()">Dashboard</button>
+    <button class="nav-tab" onclick="showView('lancamento',this)">Lançamento</button><button class="nav-tab" onclick="askPassword()">Dashboard</button>
   </div>
   <div class="nav-time" id="clock">--:--:--</div>
 </nav>
@@ -148,6 +148,46 @@
   <div class="month-row"><select id="dash-month" onchange="renderDashboard()"></select></div>
   <div class="stats-grid" id="stats-grid"></div>
   <div class="card"><div class="card-title">Funcionários</div><div id="emp-list"></div></div>
+</div>
+
+<div class="view" id="view-lancamento">
+  <div class="section-title">Lançamento Manual</div>
+  <div class="section-sub">Registre ou corrija o ponto de um funcionário</div>
+  <div class="card">
+    <div class="card-title">Funcionário e Data</div>
+    <select class="employee-select" id="lanc-emp">
+      <option value="">Selecione o funcionário...</option>
+    </select>
+    <input type="date" id="lanc-data"
+      style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+             padding:13px 16px;color:var(--text);font-family:Inter,sans-serif;font-size:15px;
+             outline:none;margin-bottom:20px;appearance:none;">
+    <div class="card-title">Horários</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+      <div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">Entrada</div>
+        <input type="time" id="lanc-entrada" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;color:var(--text);font-family:Inter,sans-serif;font-size:15px;outline:none;">
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">Saída Almoço</div>
+        <input type="time" id="lanc-saida_almoco" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;color:var(--text);font-family:Inter,sans-serif;font-size:15px;outline:none;">
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">Retorno Almoço</div>
+        <input type="time" id="lanc-retorno_almoco" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;color:var(--text);font-family:Inter,sans-serif;font-size:15px;outline:none;">
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">Saída</div>
+        <input type="time" id="lanc-saida" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;color:var(--text);font-family:Inter,sans-serif;font-size:15px;outline:none;">
+      </div>
+    </div>
+    <div id="lanc-preview" style="margin-bottom:16px;min-height:20px;"></div>
+    <button onclick="salvarLancamento()"
+      style="width:100%;padding:15px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);
+             font-family:Inter,sans-serif;font-size:15px;font-weight:600;cursor:pointer;">
+      Salvar Lançamento
+    </button>
+  </div>
 </div>
 
 <div class="modal-bg" id="modal-bg">
@@ -235,7 +275,16 @@ function initMonthSelects(){
   for(let i=0;i<6;i++){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);months.push(d.getFullYear()+'-'+pad(d.getMonth()+1));}
   ['hist-month','dash-month'].forEach(id=>{const el=document.getElementById(id);if(!el)return;months.forEach((m,i)=>{const o=document.createElement('option');o.value=m;o.textContent=monthLabel(m);if(i===0)o.selected=true;el.appendChild(o);});});
   document.getElementById('today-label').textContent=formatDate(todayStr());
-  if(IS_GESTAO){FUNCIONARIOS.forEach(f=>{const o=document.createElement('option');o.value=f.id;o.textContent=f.nome;document.getElementById('emp-select').appendChild(o);});}
+  if(IS_GESTAO){
+    FUNCIONARIOS.forEach(f=>{
+      const o=document.createElement('option');o.value=f.id;o.textContent=f.nome;
+      document.getElementById('emp-select').appendChild(o);
+      const o2=document.createElement('option');o2.value=f.id;o2.textContent=f.nome;
+      document.getElementById('lanc-emp').appendChild(o2);
+    });
+    // data padrão = hoje
+    document.getElementById('lanc-data').value=todayStr();
+  }
 }
 
 window.showView=function(name,btn){
@@ -378,6 +427,22 @@ async function renderDashboard(){
     return '<div class="emp-row"><div class="emp-avatar" style="background:'+f.bg+';color:'+f.cor+'">'+ini+'</div><div><div class="emp-name">'+f.nome+'</div></div><div class="emp-stats"><div class="emp-hours">'+hT.toFixed(1)+'h <span style="font-size:11px;color:'+sc+'">'+( dias>0?sl:'')+'</span></div><div class="emp-faltas">'+(fa===0?'✓ Sem faltas':fa+' falta'+(fa>1?'s':''))+'</div></div></div>';
   }).join('');
 }
+
+window.salvarLancamento=async function(){
+  const empId=document.getElementById('lanc-emp').value;
+  const data=document.getElementById('lanc-data').value;
+  if(!empId||!data){showToast('Selecione funcionário e data','error');return;}
+  const rec={};
+  ['entrada','saida_almoco','retorno_almoco','saida'].forEach(k=>{
+    const v=document.getElementById('lanc-'+k).value;
+    if(v)rec[k]=v;
+  });
+  if(!rec.entrada){showToast('Entrada é obrigatória','error');return;}
+  await saveRecord(empId,data,rec);
+  showToast('✓ Ponto salvo para '+data,'success');
+  // limpa campos
+  ['entrada','saida_almoco','retorno_almoco','saida'].forEach(k=>{document.getElementById('lanc-'+k).value='';});
+};
 
 window.askPassword=function(){document.getElementById('pwd-input').value='';document.getElementById('pwd-error').textContent='';document.getElementById('pwd-modal-bg').classList.add('open');setTimeout(()=>document.getElementById('pwd-input').focus(),100);};
 window.closePwdModal=function(){document.getElementById('pwd-modal-bg').classList.remove('open');};
