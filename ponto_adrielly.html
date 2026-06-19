@@ -251,7 +251,8 @@ function monthLabel(s){const months=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','
 function timeToMin(t){if(!t)return null;const[h,m]=t.split(':').map(Number);return h*60+m;}
 function minToHHMM(min){const m=Math.round(Math.abs(min));const h=Math.floor(m/60),mm=m%60;return(min<0?'-':'')+pad(h)+'h'+pad(mm);}
 function calcHoras(rec){const e=timeToMin(rec.entrada),s=timeToMin(rec.saida),sa=timeToMin(rec.saida_almoco),ra=timeToMin(rec.retorno_almoco);if(!e||!s)return 0;let t=s-e;if(sa&&ra)t-=(ra-sa);return Math.round(t)/60;}
-function isWeekend(d){const[y,m,dd]=d.split('-').map(Number);const w=new Date(y,m-1,dd).getDay();return w===0||w===6;}
+function isWeekend(d){const[y,m,dd]=d.split('-').map(Number);const w=new Date(y,m-1,dd).getDay();return w===0;}
+function jornadaDia(dateStr){const[y,m,d]=dateStr.split('-').map(Number);const w=new Date(y,m-1,d).getDay();return w===6?4:8;}
 
 setInterval(()=>{const n=new Date();document.getElementById('clock').textContent=pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());},1000);
 
@@ -323,7 +324,7 @@ function updateStatusRow(rec){
   if(rec.entrada)chips.push('<span class="chip chip-green">Entrou '+rec.entrada+'</span>');
   if(rec.saida_almoco)chips.push('<span class="chip chip-yellow">Almoço '+rec.saida_almoco+'</span>');
   if(rec.retorno_almoco)chips.push('<span class="chip chip-blue">Retornou '+rec.retorno_almoco+'</span>');
-  if(rec.saida){const h=calcHoras(rec);chips.push('<span class="chip chip-'+(h>=JORNADA_H?'green':'red')+'">Saiu '+rec.saida+' · '+minToHHMM(Math.round(h*60))+'</span>');}
+  if(rec.saida){const h=calcHoras(rec);chips.push('<span class="chip chip-'+(h>=jornadaDia(todayStr())?'green':'red')+'">Saiu '+rec.saida+' · '+minToHHMM(Math.round(h*60))+'</span>');}
   document.getElementById('status-row').innerHTML=chips.join('');
 }
 
@@ -406,7 +407,7 @@ async function renderHistorico(){
   const dates=Object.keys(records).sort();
   if(!dates.length){tbody.innerHTML='<tr><td colspan="8" class="loading">Nenhum registro encontrado</td></tr>';return;}
   tbody.innerHTML=dates.map(date=>{
-    const rec=records[date],horas=calcHoras(rec),saldo=horas-JORNADA_H;
+    const rec=records[date],horas=calcHoras(rec),saldo=horas-jornadaDia(date);
     const complete=rec.entrada&&rec.saida_almoco&&rec.retorno_almoco&&rec.saida;
     let status='';
     if(!rec.entrada)status='<span class="badge badge-red">Falta</span>';
@@ -417,8 +418,7 @@ async function renderHistorico(){
     const sc=saldo>=0?'var(--green)':'var(--red)';
     const saldoMin=Math.round(saldo*60);
     const saldoStr=(saldo>=0?'+':'')+minToHHMM(Math.abs(saldoMin));
-    return '<tr><td>'+formatDate(date)+'</td><td>'+(rec.entrada||'—')+'</td><td>'+(rec.saida_almoco||'—')+'</td><td>'+(rec.retorno_almoco||'—')+'</td><td>'+(rec.saida||'—')+'</td><td>'+(horas>0?minToHHMM(horasMin):'—')+'</td><td style="color:'+sc+';font-weight:600">'+(horas>0?saldoStr:'—')+'</td><td>'+status+'</td></tr>';
-  }).join('');
+    return '<tr><td>'+formatDate(date)+'</td><td>'+(rec.entrada||'—')+'</td><td>'+(rec.saida_almoco||'—')+'</td><td>'+(rec.retorno_almoco||'—')+'</td><td>'+(rec.saida||'—')+'</td><td>'+(horas>0?minToHHMM(horasMin):'—')+'</td><td style="color:'+sc+';font-weight:600">'+(horas>0?saldoStr:'—')+'</td><td>'+status+'</td></tr>';  }).join('');
 }
 
 async function renderDashboard(){
@@ -431,7 +431,7 @@ async function renderDashboard(){
     const ed=allData[f.id]||{};
     const dias=Object.keys(ed).filter(d=>!isWeekend(d));
     let hT=0,fa=0,sM=0;
-    dias.forEach(d=>{tR++;const rec=ed[d];if(!rec.entrada){fa++;return;}const h=calcHoras(rec);hT+=h;sM+=(h-JORNADA_H)*60;});
+    dias.forEach(d=>{tR++;const rec=ed[d];if(!rec.entrada){fa++;return;}const h=calcHoras(rec);hT+=h;sM+=(h-jornadaDia(d))*60;});
     tF+=fa;if(sM>0)tE+=sM;else tN+=Math.abs(sM);
     return{f,hT,fa,sM,dias:dias.length};
   });

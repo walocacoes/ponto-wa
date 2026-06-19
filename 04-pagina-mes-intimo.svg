@@ -1,0 +1,69 @@
+<svg viewBox="0 0 1200 1200" xmlns="http://www.w3.org/2000/svg" width="1200" height="1200">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F9EFE5"/>
+      <stop offset="100%" style="stop-color:#EDD9C3"/>
+    </linearGradient>
+    <linearGradient id="sideAccent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#C4956A;stop-opacity:0.5"/>
+      <stop offset="100%" style="stop-color:#C4956A;stop-opacity:0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="1200" fill="url(#bgGrad)"/>
+
+  <!-- Dot pattern -->
+  <pattern id="dots" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+    <circle cx="20" cy="20" r="0.8" fill="#9B6B47" opacity="0.12"/>
+  </pattern>
+  <rect width="1200" height="1200" fill="url(#dots)"/>
+
+  <!-- Right side vertical accent -->
+  <rect x="1100" y="0" width="100" height="1200" fill="url(#sideAccent)" opacity="0.15"/>
+  <rect x="1100" y="80" width="3" height="1040" rx="1.5" fill="#C4956A" opacity="0.4"/>
+
+  <!-- Top ornament line -->
+  <line x1="80" y1="100" x2="900" y2="100" stroke="#C4956A" stroke-width="0.8" opacity="0.35"/>
+  <circle cx="80" cy="100" r="3" fill="#C4956A" opacity="0.4"/>
+
+  <!-- Section label - right aligned -->
+  <text x="1090" y="200" text-anchor="end" font-family="Arial, sans-serif" font-size="12" fill="#C4956A" letter-spacing="5">MÊS</text>
+  <text x="1090" y="270" text-anchor="end" font-family="Georgia, serif" font-size="52" fill="#6B4226" font-style="italic">Setembro</text>
+  <text x="1090" y="315" text-anchor="end" font-family="Arial, sans-serif" font-size="14" fill="#9B6B47" letter-spacing="3" opacity="0.7">— Outubro 2025</text>
+
+  <!-- Tag -->
+  <rect x="850" y="345" width="240" height="36" rx="18" fill="#C4956A" opacity="0.18"/>
+  <text x="970" y="369" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6B4226" letter-spacing="2">MAIS FUNDO</text>
+
+  <!-- Large photo - left, dominant -->
+  <rect x="80" y="160" width="560" height="600" rx="4" fill="#E0C9B0" opacity="0.4"/>
+  <rect x="80" y="160" width="560" height="600" rx="4" fill="none" stroke="#C4956A" stroke-width="1.2" stroke-dasharray="8,6" opacity="0.45"/>
+  <text x="360" y="445" text-anchor="middle" font-family="Georgia, serif" font-size="20" fill="#9B6B47" opacity="0.5" font-style="italic">foto marcante do mês</text>
+
+  <!-- Quote area - elegant pull quote -->
+  <line x1="680" y1="430" x2="700" y2="430" stroke="#C4956A" stroke-width="2" opacity="0.6"/>
+  <text x="720" y="430" font-family="Georgia, serif" font-size="28" fill="#6B4226" font-style="italic" font-weight="300">"escreva uma frase</text>
+  <text x="720" y="470" font-family="Georgia, serif" font-size="28" fill="#6B4226" font-style="italic" font-weight="300">que define esse mês"</text>
+
+  <!-- Small text lines right -->
+  <line x1="680" y1="540" x2="1080" y2="540" stroke="#C4956A" stroke-width="0.5" opacity="0.3"/>
+  <line x1="680" y1="590" x2="1080" y2="590" stroke="#C4956A" stroke-width="0.5" opacity="0.3"/>
+  <line x1="680" y1="640" x2="1080" y2="640" stroke="#C4956A" stroke-width="0.5" opacity="0.3"/>
+  <line x1="680" y1="690" x2="1080" y2="690" stroke="#C4956A" stroke-width="0.5" opacity="0.3"/>
+
+  <!-- Bottom photo strip -->
+  <rect x="80" y="820" width="340" height="280" rx="3" fill="#E0C9B0" opacity="0.35"/>
+  <rect x="80" y="820" width="340" height="280" rx="3" fill="none" stroke="#C4956A" stroke-width="1" stroke-dasharray="6,5" opacity="0.4"/>
+  <text x="250" y="965" text-anchor="middle" font-family="Georgia, serif" font-size="16" fill="#9B6B47" opacity="0.45" font-style="italic">foto opcional</text>
+
+  <rect x="450" y="820" width="630" height="280" rx="3" fill="none" stroke="#C4956A" stroke-width="0" opacity="0"/>
+  <!-- Text lines bottom right -->
+  <text x="450" y="870" font-family="Georgia, serif" font-size="19" fill="#6B4226" font-style="italic" opacity="0.35">escreva mais sobre esse mês...</text>
+  <line x1="450" y1="920" x2="1090" y2="920" stroke="#C4956A" stroke-width="0.5" opacity="0.25"/>
+  <line x1="450" y1="970" x2="1090" y2="970" stroke="#C4956A" stroke-width="0.5" opacity="0.25"/>
+  <line x1="450" y1="1020" x2="1090" y2="1020" stroke="#C4956A" stroke-width="0.5" opacity="0.25"/>
+  <line x1="450" y1="1070" x2="1090" y2="1070" stroke="#C4956A" stroke-width="0.5" opacity="0.25"/>
+
+  <!-- Bottom ornament -->
+  <text x="600" y="1160" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#C4956A" opacity="0.4" letter-spacing="3">◇</text>
+</svg>
