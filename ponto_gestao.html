@@ -249,7 +249,30 @@ tr:hover td{background:var(--surface2);}
   <div class="section-sub">Resumo — <span id="dash-month-label"></span></div>
   <div class="month-row"><select id="dash-month" onchange="renderDashboard()"></select></div>
   <div class="stats-grid" id="stats-grid"></div>
-  <div class="card"><div class="card-title">Funcionários — Banco de Horas</div><div id="emp-list"></div></div>
+
+  <!-- Banco de Horas individual -->
+  <div class="card">
+    <div class="card-title">Banco de Horas — Saldo Individual</div>
+    <div id="emp-list"></div>
+  </div>
+
+  <!-- Gráfico de horas trabalhadas -->
+  <div class="card">
+    <div class="card-title">Horas Trabalhadas no Mês</div>
+    <canvas id="grafico-horas" height="120"></canvas>
+  </div>
+
+  <!-- Exportação mensal -->
+  <div class="card">
+    <div class="card-title">Exportação Mensal</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn" onclick="exportarCSVDash()" style="width:auto;padding:10px 20px;font-size:13px;">⬇ Exportar CSV — Todos</button>
+      <select id="dash-exp-emp" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;outline:none;">
+        <option value="">Por funcionário...</option>
+      </select>
+      <button class="btn btn-sec" onclick="exportarCSVFuncionario()" style="width:auto;padding:10px 20px;font-size:13px;">⬇ Exportar</button>
+    </div>
+  </div>
 </div>
 
 <!-- MODAL PONTO -->
@@ -279,6 +302,7 @@ tr:hover td{background:var(--surface2);}
 
 <div id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
@@ -382,7 +406,7 @@ function initSelects(){
   for(let i=0;i<6;i++){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);months.push(d.getFullYear()+'-'+pad(d.getMonth()+1));}
 
   FUNCIONARIOS.forEach(f=>{
-    ['emp-select','hist-emp-select','lanc-emp'].forEach(id=>{
+    ['emp-select','hist-emp-select','lanc-emp','dash-exp-emp'].forEach(id=>{
       const el=document.getElementById(id);if(!el)return;
       const o=document.createElement('option');o.value=f.id;o.textContent=f.nome;el.appendChild(o);
     });
@@ -696,11 +720,15 @@ async function _executarSalvamento(empId,data,rec){
 });
 
 // ── DASHBOARD ──
+let dashCache = { stats: [], allData: {}, month: '' };
+let graficoInstance = null;
+
 async function renderDashboard(){
   const month=document.getElementById('dash-month').value;
   document.getElementById('dash-month-label').textContent=monthLabel(month);
   document.getElementById('emp-list').innerHTML='<div class="loading">Carregando...</div>';
   const allData=await getAllMonthRecords(month);
+  dashCache.allData=allData; dashCache.month=month;
 
   let tF=0,tE=0,tN=0,tR=0;
   const stats=FUNCIONARIOS.map(f=>{
@@ -711,6 +739,7 @@ async function renderDashboard(){
     tF+=fa;if(sM>0)tE+=sM;else tN+=Math.abs(sM);
     return{f,hT,fa,sM,dias:dias.length};
   });
+  dashCache.stats=stats;
 
   document.getElementById('stats-grid').innerHTML=`
     <div class="stat-card"><div class="stat-label">Registros no mês</div><div class="stat-value c-accent">${tR}</div><div class="stat-sub">lançamentos</div></div>
@@ -719,18 +748,118 @@ async function renderDashboard(){
     <div class="stat-card"><div class="stat-label">Banco negativo</div><div class="stat-value ${tN>0?'c-red':'c-green'}">${minToHHMM(tN)}</div><div class="stat-sub">a compensar</div></div>
   `;
 
+  // Banco de horas com barra de progresso
   document.getElementById('emp-list').innerHTML=stats.map(({f,hT,fa,sM})=>{
     const sl=(sM>=0?'+':'')+minToHHMM(Math.abs(sM)),sc=sM>=0?'#22C55E':'#E8302F';
-    return `<div class="emp-row">
-      <div class="emp-av">${initials(f.nome)}</div>
-      <div><div class="emp-name">${f.nome}</div><div class="emp-sub">${fa===0?'✓ Sem faltas':fa+' falta'+(fa>1?'s':'')}</div></div>
-      <div class="emp-right">
-        <div class="emp-hours">${minToHHMM(Math.round(hT*60))}</div>
-        <div style="font-size:11px;color:${sc};margin-top:2px;">${sM!==0?'saldo '+sl:''}</div>
+    const pct=Math.min(100,Math.round((hT/(22*8))*100)); // ~22 dias úteis
+    return `<div class="emp-row" style="flex-direction:column;align-items:stretch;gap:8px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="emp-av">${initials(f.nome)}</div>
+        <div style="flex:1"><div class="emp-name">${f.nome}</div><div class="emp-sub">${fa===0?'✓ Sem faltas':fa+' falta'+(fa>1?'s':'')}</div></div>
+        <div class="emp-right">
+          <div class="emp-hours">${minToHHMM(Math.round(hT*60))}</div>
+          <div style="font-size:11px;color:${sc};margin-top:2px;font-weight:600;">${sM!==0?'saldo '+sl:'saldo 00h00'}</div>
+        </div>
+      </div>
+      <div style="background:var(--border);border-radius:4px;height:4px;overflow:hidden;">
+        <div style="background:${sc};height:100%;width:${pct}%;border-radius:4px;transition:width .5s;"></div>
       </div>
     </div>`;
   }).join('');
+
+  // Gráfico
+  renderGrafico(stats);
 }
+
+function renderGrafico(stats){
+  const ctx=document.getElementById('grafico-horas');
+  if(!ctx)return;
+  if(graficoInstance){graficoInstance.destroy();graficoInstance=null;}
+  const labels=stats.map(s=>s.f.nome.split(' ')[0]);
+  const horasTrab=stats.map(s=>Math.round(s.hT*10)/10);
+  const horasPrev=stats.map(s=>s.dias*(s.dias>0?8:0)); // aproximado
+
+  graficoInstance=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {label:'H. Trabalhadas',data:horasTrab,backgroundColor:'#C41E2088',borderColor:'#C41E20',borderWidth:1,borderRadius:4},
+        {label:'H. Previstas',data:horasPrev,backgroundColor:'#3A3A3A',borderColor:'#555',borderWidth:1,borderRadius:4},
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{labels:{color:'#A0A0A0',font:{family:'Inter',size:11}}},tooltip:{callbacks:{label:ctx=>{const v=ctx.parsed.y;const h=Math.floor(v),m=Math.round((v-h)*60);return ctx.dataset.label+': '+pad(h)+'h'+pad(m);}}}},
+      scales:{
+        x:{ticks:{color:'#A0A0A0',font:{family:'Inter',size:11}},grid:{color:'#2A2A2A'}},
+        y:{ticks:{color:'#A0A0A0',font:{family:'Inter',size:11},callback:v=>v+'h'},grid:{color:'#2A2A2A'}}
+      }
+    }
+  });
+}
+
+// ── EXPORTAÇÃO ──
+function buildCSVRows(empId, allData, month){
+  const rows=[];
+  const funcionarios = empId ? FUNCIONARIOS.filter(f=>f.id===empId) : FUNCIONARIOS;
+  funcionarios.forEach(f=>{
+    const ed=allData[f.id]||{};
+    Object.keys(ed).sort().filter(d=>d.startsWith(month)).forEach(date=>{
+      const rec=ed[date];
+      const horas=calcHoras(rec),saldo=horas-jornadaDia(date);
+      rows.push([
+        date, f.nome,
+        rec.entrada||'', rec.saida_almoco||'', rec.retorno_almoco||'', rec.saida||'',
+        horas>0?minToHHMM(Math.round(horas*60)):'',
+        horas>0?(saldo>=0?'+':'')+minToHHMM(Math.abs(Math.round(saldo*60))):'',
+        rec._editado?'Editado':'OK',
+        rec._editado_por||'', rec._motivo||''
+      ].join(','));
+    });
+  });
+  return rows;
+}
+
+window.exportarCSVDash=function(){
+  const month=document.getElementById('dash-month').value;
+  const header='Data,Funcionário,Entrada,S.Almoço,R.Almoço,Saída,H.Trabalhadas,Saldo,Status,Editado por,Motivo\n';
+  const rows=buildCSVRows('',dashCache.allData,month);
+  if(!rows.length){showToast('Nenhum dado para exportar','error');return;}
+  const blob=new Blob(['\uFEFF'+header+rows.join('\n')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='ponto_wa_todos_'+month+'.csv';a.click();
+  showToast('CSV exportado!','success');
+};
+
+window.exportarCSVFuncionario=function(){
+  const empId=document.getElementById('dash-exp-emp').value;
+  const month=document.getElementById('dash-month').value;
+  if(!empId){showToast('Selecione um funcionário','error');return;}
+  const f=FUNCIONARIOS.find(f=>f.id===empId);
+  const header='Data,Funcionário,Entrada,S.Almoço,R.Almoço,Saída,H.Trabalhadas,Saldo,Status,Editado por,Motivo\n';
+  const rows=buildCSVRows(empId,dashCache.allData,month);
+  if(!rows.length){showToast('Nenhum dado para exportar','error');return;}
+  const blob=new Blob(['\uFEFF'+header+rows.join('\n')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='ponto_wa_'+f.nome.split(' ')[0].toLowerCase()+'_'+month+'.csv';a.click();
+  showToast('CSV exportado!','success');
+};
+
+// exportar CSV do histórico (botão na aba histórico)
+window.exportarCSV=function(){
+  if(!histCache.length){showToast('Nenhum dado para exportar','error');return;}
+  const header='Data,Funcionário,Entrada,S.Almoço,R.Almoço,Saída,H.Trabalhadas,Saldo,Status,Editado por,Motivo\n';
+  const rows=histCache.map(({date,f,rec,horas,saldo,statusStr})=>[
+    date,f.nome,rec.entrada||'',rec.saida_almoco||'',rec.retorno_almoco||'',rec.saida||'',
+    horas>0?minToHHMM(Math.round(horas*60)):'',
+    horas>0?(saldo>=0?'+':'')+minToHHMM(Math.abs(Math.round(saldo*60))):'',
+    statusStr,rec._editado_por||'',rec._motivo||''
+  ].join(','));
+  const blob=new Blob(['\uFEFF'+header+rows.join('\n')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ponto_wa_historico_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+  showToast('CSV exportado!','success');
+};
 
 // ── SENHA ──
 window.askPassword=function(){document.getElementById('pwd-input').value='';document.getElementById('pwd-error').textContent='';document.getElementById('pwd-modal-bg').classList.add('open');setTimeout(()=>document.getElementById('pwd-input').focus(),100);};
