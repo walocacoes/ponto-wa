@@ -323,7 +323,7 @@ function updateStatusRow(rec){
   if(rec.entrada)chips.push('<span class="chip chip-green">Entrou '+rec.entrada+'</span>');
   if(rec.saida_almoco)chips.push('<span class="chip chip-yellow">Almoço '+rec.saida_almoco+'</span>');
   if(rec.retorno_almoco)chips.push('<span class="chip chip-blue">Retornou '+rec.retorno_almoco+'</span>');
-  if(rec.saida){const h=calcHoras(rec);chips.push('<span class="chip chip-'+(h>=JORNADA_H?'green':'red')+'">Saiu '+rec.saida+' · '+h.toFixed(1)+'h</span>');}
+  if(rec.saida){const h=calcHoras(rec);chips.push('<span class="chip chip-'+(h>=JORNADA_H?'green':'red')+'">Saiu '+rec.saida+' · '+minToHHMM(Math.round(h*60))+'</span>');}
   document.getElementById('status-row').innerHTML=chips.join('');
 }
 
@@ -413,8 +413,11 @@ async function renderHistorico(){
     else if(!complete)status='<span class="badge badge-yellow">Incompleto</span>';
     else if(saldo>=0)status='<span class="badge badge-green">OK</span>';
     else status='<span class="badge badge-yellow">Banco neg.</span>';
+    const horasMin=Math.round(horas*60);
     const sc=saldo>=0?'var(--green)':'var(--red)';
-    return '<tr><td>'+formatDate(date)+'</td><td>'+(rec.entrada||'—')+'</td><td>'+(rec.saida_almoco||'—')+'</td><td>'+(rec.retorno_almoco||'—')+'</td><td>'+(rec.saida||'—')+'</td><td>'+(horas>0?horas.toFixed(1)+'h':'—')+'</td><td style="color:'+sc+';font-weight:600">'+(horas>0?(saldo>=0?'+':'')+saldo.toFixed(1)+'h':'—')+'</td><td>'+status+'</td></tr>';
+    const saldoMin=Math.round(saldo*60);
+    const saldoStr=(saldo>=0?'+':'')+minToHHMM(Math.abs(saldoMin));
+    return '<tr><td>'+formatDate(date)+'</td><td>'+(rec.entrada||'—')+'</td><td>'+(rec.saida_almoco||'—')+'</td><td>'+(rec.retorno_almoco||'—')+'</td><td>'+(rec.saida||'—')+'</td><td>'+(horas>0?minToHHMM(horasMin):'—')+'</td><td style="color:'+sc+';font-weight:600">'+(horas>0?saldoStr:'—')+'</td><td>'+status+'</td></tr>';
   }).join('');
 }
 
@@ -440,7 +443,7 @@ async function renderDashboard(){
   document.getElementById('emp-list').innerHTML=stats.map(({f,hT,fa,sM,dias})=>{
     const ini=f.nome.split(' ').slice(0,2).map(w=>w[0]).join('');
     const sl=(sM>=0?'+':'')+minToHHMM(sM),sc=sM>=0?'var(--green)':'var(--red)';
-    return '<div class="emp-row"><div class="emp-avatar" style="background:'+f.bg+';color:'+f.cor+'">'+ini+'</div><div><div class="emp-name">'+f.nome+'</div></div><div class="emp-stats"><div class="emp-hours">'+hT.toFixed(1)+'h <span style="font-size:11px;color:'+sc+'">'+( dias>0?sl:'')+'</span></div><div class="emp-faltas">'+(fa===0?'✓ Sem faltas':fa+' falta'+(fa>1?'s':''))+'</div></div></div>';
+    return '<div class="emp-row"><div class="emp-avatar" style="background:'+f.bg+';color:'+f.cor+'">'+ini+'</div><div><div class="emp-name">'+f.nome+'</div></div><div class="emp-stats"><div class="emp-hours">'+minToHHMM(Math.round(hT*60))+' <span style="font-size:11px;color:'+sc+'">'+( dias>0?sl:'')+'</span></div><div class="emp-faltas">'+(fa===0?'✓ Sem faltas':fa+' falta'+(fa>1?'s':''))+'</div></div></div>';
   }).join('');
 }
 
