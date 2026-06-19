@@ -650,17 +650,36 @@ window.salvarLancamento=async function(){
   const incs=verificarInconsistencias(rec);
   const alertEl=document.getElementById('lanc-alertas');
   if(incs.length){
-    alertEl.innerHTML=incs.map(a=>`<div class="alert-box alert-red">⚠️ ${a}</div>`).join('');
+    alertEl.innerHTML=incs.map(a=>`<div class="alert-box alert-red">⚠️ ${a}</div>`).join('')+
+      `<button class="btn" onclick="salvarLancamentoForcado()" style="background:#7a1a1a;margin-top:8px;">Salvar mesmo assim</button>`;
     showToast('Verifique os alertas antes de salvar','warn');
     return;
   }
   alertEl.innerHTML='';
+  await _executarSalvamento(empId,data,rec);
+};
 
+window.salvarLancamentoForcado=async function(){
+  const empId=document.getElementById('lanc-emp').value;
+  const data=document.getElementById('lanc-data').value;
+  const motivo=document.getElementById('lanc-motivo').value.trim();
+  const rec={};
+  ['entrada','saida_almoco','retorno_almoco','saida'].forEach(k=>{
+    const v=document.getElementById('lanc-'+k).value;if(v)rec[k]=v;
+  });
+  rec._editado=true;rec._editado_por='Gestão';
+  rec._editado_em=new Date().toLocaleDateString('pt-BR')+' '+nowStr();
+  rec._motivo=motivo+' [salvo com alertas]';
+  await _executarSalvamento(empId,data,rec);
+};
+
+async function _executarSalvamento(empId,data,rec){
   await saveRecord(empId,data,rec);
   showToast('✓ Ponto salvo com sucesso','success');
+  document.getElementById('lanc-alertas').innerHTML='';
   ['lanc-entrada','lanc-saida_almoco','lanc-retorno_almoco','lanc-saida'].forEach(id=>{document.getElementById(id).value='';});
   document.getElementById('lanc-motivo').value='';
-};
+}
 
 // Mostrar alertas ao preencher lançamento
 ['lanc-entrada','lanc-saida_almoco','lanc-retorno_almoco','lanc-saida'].forEach(id=>{
