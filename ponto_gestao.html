@@ -214,7 +214,7 @@ tr:hover td{background:var(--surface2);}
       </table>
     </div>
   </div>
-  <button class="btn btn-sec" onclick="exportarCSV()" style="width:auto;padding:10px 20px;font-size:13px;">⬇ Exportar CSV</button>
+  <button class="btn btn-sec" onclick="exportarPDFHistorico()" style="width:auto;padding:10px 20px;font-size:13px;">⬇ Exportar PDF</button>
 </div>
 
 <!-- LANÇAMENTO MANUAL -->
@@ -266,11 +266,11 @@ tr:hover td{background:var(--surface2);}
   <div class="card">
     <div class="card-title">Exportação Mensal</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      <button class="btn" onclick="exportarCSVDash()" style="width:auto;padding:10px 20px;font-size:13px;">⬇ Exportar CSV — Todos</button>
+      <button class="btn" onclick="exportarPDFTodos()" style="width:auto;padding:10px 20px;font-size:13px;">⬇ PDF — Todos os funcionários</button>
       <select id="dash-exp-emp" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;outline:none;">
         <option value="">Por funcionário...</option>
       </select>
-      <button class="btn btn-sec" onclick="exportarCSVFuncionario()" style="width:auto;padding:10px 20px;font-size:13px;">⬇ Exportar</button>
+      <button class="btn btn-sec" onclick="exportarPDFFuncionario()" style="width:auto;padding:10px 20px;font-size:13px;">⬇ PDF</button>
     </div>
   </div>
 </div>
@@ -303,6 +303,8 @@ tr:hover td{background:var(--surface2);}
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
@@ -799,66 +801,118 @@ function renderGrafico(stats){
   });
 }
 
-// ── EXPORTAÇÃO ──
-function buildCSVRows(empId, allData, month){
+// ── EXPORTAÇÃO PDF ──
+function buildRows(empId, allData, month){
   const rows=[];
-  const funcionarios = empId ? FUNCIONARIOS.filter(f=>f.id===empId) : FUNCIONARIOS;
-  funcionarios.forEach(f=>{
+  const funcs=empId?FUNCIONARIOS.filter(f=>f.id===empId):FUNCIONARIOS;
+  funcs.forEach(f=>{
     const ed=allData[f.id]||{};
     Object.keys(ed).sort().filter(d=>d.startsWith(month)).forEach(date=>{
       const rec=ed[date];
       const horas=calcHoras(rec),saldo=horas-jornadaDia(date);
+      let status='OK';
+      if(!rec.entrada)status='Falta';
+      else if(!rec.saida)status='Incompleto';
+      else if(rec._editado)status='Editado';
       rows.push([
-        date, f.nome,
-        rec.entrada||'', rec.saida_almoco||'', rec.retorno_almoco||'', rec.saida||'',
-        horas>0?minToHHMM(Math.round(horas*60)):'',
-        horas>0?(saldo>=0?'+':'')+minToHHMM(Math.abs(Math.round(saldo*60))):'',
-        rec._editado?'Editado':'OK',
-        rec._editado_por||'', rec._motivo||''
-      ].join(','));
+        formatDate(date),
+        f.nome.split(' ')[0]+' '+f.nome.split(' ').slice(-1)[0],
+        rec.entrada||'—', rec.saida_almoco||'—', rec.retorno_almoco||'—', rec.saida||'—',
+        horas>0?minToHHMM(Math.round(horas*60)):'—',
+        horas>0?(saldo>=0?'+':'')+minToHHMM(Math.abs(Math.round(saldo*60))):'—',
+        status,
+        rec._motivo||''
+      ]);
     });
   });
   return rows;
 }
 
-window.exportarCSVDash=function(){
-  const month=document.getElementById('dash-month').value;
-  const header='Data,Funcionário,Entrada,S.Almoço,R.Almoço,Saída,H.Trabalhadas,Saldo,Status,Editado por,Motivo\n';
-  const rows=buildCSVRows('',dashCache.allData,month);
+function gerarPDF(rows, titulo, subtitulo){
   if(!rows.length){showToast('Nenhum dado para exportar','error');return;}
-  const blob=new Blob(['\uFEFF'+header+rows.join('\n')],{type:'text/csv;charset=utf-8;'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='ponto_wa_todos_'+month+'.csv';a.click();
-  showToast('CSV exportado!','success');
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+
+  // cabeçalho
+  doc.setFillColor(196,30,32);
+  doc.rect(0,0,297,18,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(13);
+  doc.text('WA LOCAÇÕES & EVENTOS',10,12);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.text(titulo,297-10,8,{align:'right'});
+  doc.text(subtitulo,297-10,14,{align:'right'});
+
+  // tabela
+  doc.autoTable({
+    startY:22,
+    head:[['Data','Funcionário','Entrada','S.Almoço','R.Almoço','Saída','H.Trab.','Saldo','Status','Motivo']],
+    body:rows,
+    styles:{fontSize:8,cellPadding:2,textColor:[245,245,245],fillColor:[30,30,30],lineColor:[58,58,58],lineWidth:0.1},
+    headStyles:{fillColor:[196,30,32],textColor:[255,255,255],fontStyle:'bold',fontSize:8},
+    alternateRowStyles:{fillColor:[42,42,42]},
+    columnStyles:{
+      0:{cellWidth:28},1:{cellWidth:32},2:{cellWidth:16},3:{cellWidth:18},
+      4:{cellWidth:18},5:{cellWidth:16},6:{cellWidth:16},7:{cellWidth:16},
+      8:{cellWidth:18},9:{cellWidth:40}
+    },
+    didParseCell:function(data){
+      if(data.section==='body'&&data.column.index===8){
+        if(data.cell.raw==='Falta')data.cell.styles.textColor=[232,48,47];
+        else if(data.cell.raw==='OK')data.cell.styles.textColor=[34,197,94];
+        else if(data.cell.raw==='Editado')data.cell.styles.textColor=[251,146,60];
+      }
+      if(data.section==='body'&&data.column.index===7){
+        if(data.cell.raw&&data.cell.raw.startsWith('+'))data.cell.styles.textColor=[34,197,94];
+        else if(data.cell.raw&&data.cell.raw.startsWith('-'))data.cell.styles.textColor=[232,48,47];
+      }
+    },
+    foot:[[]],
+    showFoot:'lastPage',
+  });
+
+  // rodapé
+  const pageCount=doc.internal.getNumberOfPages();
+  for(let i=1;i<=pageCount;i++){
+    doc.setPage(i);
+    doc.setFontSize(7);doc.setTextColor(100,100,100);
+    doc.text('Gerado em '+new Date().toLocaleString('pt-BR'),10,doc.internal.pageSize.height-5);
+    doc.text('Página '+i+' de '+pageCount,297-10,doc.internal.pageSize.height-5,{align:'right'});
+  }
+
+  doc.save(titulo.toLowerCase().replace(/ /g,'_')+'.pdf');
+  showToast('PDF gerado!','success');
+}
+
+window.exportarPDFTodos=function(){
+  const month=document.getElementById('dash-month').value;
+  const rows=buildRows('',dashCache.allData,month);
+  gerarPDF(rows,'Ponto '+monthLabel(month)+' — Todos','WA Locações & Eventos');
 };
 
-window.exportarCSVFuncionario=function(){
+window.exportarPDFFuncionario=function(){
   const empId=document.getElementById('dash-exp-emp').value;
   const month=document.getElementById('dash-month').value;
   if(!empId){showToast('Selecione um funcionário','error');return;}
   const f=FUNCIONARIOS.find(f=>f.id===empId);
-  const header='Data,Funcionário,Entrada,S.Almoço,R.Almoço,Saída,H.Trabalhadas,Saldo,Status,Editado por,Motivo\n';
-  const rows=buildCSVRows(empId,dashCache.allData,month);
-  if(!rows.length){showToast('Nenhum dado para exportar','error');return;}
-  const blob=new Blob(['\uFEFF'+header+rows.join('\n')],{type:'text/csv;charset=utf-8;'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='ponto_wa_'+f.nome.split(' ')[0].toLowerCase()+'_'+month+'.csv';a.click();
-  showToast('CSV exportado!','success');
+  const rows=buildRows(empId,dashCache.allData,month);
+  gerarPDF(rows,'Ponto '+monthLabel(month)+' — '+f.nome.split(' ')[0],f.nome);
 };
 
-// exportar CSV do histórico (botão na aba histórico)
-window.exportarCSV=function(){
+window.exportarPDFHistorico=function(){
   if(!histCache.length){showToast('Nenhum dado para exportar','error');return;}
-  const header='Data,Funcionário,Entrada,S.Almoço,R.Almoço,Saída,H.Trabalhadas,Saldo,Status,Editado por,Motivo\n';
+  const month=document.getElementById('hist-month').value;
   const rows=histCache.map(({date,f,rec,horas,saldo,statusStr})=>[
-    date,f.nome,rec.entrada||'',rec.saida_almoco||'',rec.retorno_almoco||'',rec.saida||'',
-    horas>0?minToHHMM(Math.round(horas*60)):'',
-    horas>0?(saldo>=0?'+':'')+minToHHMM(Math.abs(Math.round(saldo*60))):'',
-    statusStr,rec._editado_por||'',rec._motivo||''
-  ].join(','));
-  const blob=new Blob(['\uFEFF'+header+rows.join('\n')],{type:'text/csv;charset=utf-8;'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ponto_wa_historico_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
-  showToast('CSV exportado!','success');
+    formatDate(date),
+    f.nome.split(' ')[0]+' '+f.nome.split(' ').slice(-1)[0],
+    rec.entrada||'—',rec.saida_almoco||'—',rec.retorno_almoco||'—',rec.saida||'—',
+    horas>0?minToHHMM(Math.round(horas*60)):'—',
+    horas>0?(saldo>=0?'+':'')+minToHHMM(Math.abs(Math.round(saldo*60))):'—',
+    statusStr, rec._motivo||''
+  ]);
+  gerarPDF(rows,'Histórico '+monthLabel(month),'WA Locações & Eventos');
 };
 
 // ── SENHA ──
