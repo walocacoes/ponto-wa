@@ -132,7 +132,10 @@
 <div class="view" id="view-historico">
   <div class="section-title">Histórico</div>
   <div class="section-sub" id="hist-emp-label">Selecione um funcionário</div>
-  <div class="month-row"><select id="hist-month" onchange="renderHistorico()"></select></div>
+  <div class="month-row">
+    <select id="hist-emp-select" onchange="onHistEmpChange()" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 14px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;outline:none;flex:1;display:none;"></select>
+    <select id="hist-month" onchange="renderHistorico()"></select>
+  </div>
   <div class="card">
     <div class="table-wrap">
       <table>
@@ -246,8 +249,8 @@ function todayStr(){const n=new Date();return n.getFullYear()+'-'+pad(n.getMonth
 function formatDate(s){const[y,m,d]=s.split('-');const days=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];return days[new Date(y,m-1,d).getDay()]+', '+d+'/'+m+'/'+y;}
 function monthLabel(s){const months=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];const[y,m]=s.split('-');return months[parseInt(m)-1]+' '+y;}
 function timeToMin(t){if(!t)return null;const[h,m]=t.split(':').map(Number);return h*60+m;}
-function minToHHMM(min){const h=Math.floor(Math.abs(min)/60),m=Math.abs(min)%60;return(min<0?'-':'')+pad(h)+'h'+pad(m);}
-function calcHoras(rec){const e=timeToMin(rec.entrada),s=timeToMin(rec.saida),sa=timeToMin(rec.saida_almoco),ra=timeToMin(rec.retorno_almoco);if(!e||!s)return 0;let t=s-e;if(sa&&ra)t-=(ra-sa);return t/60;}
+function minToHHMM(min){const m=Math.round(Math.abs(min));const h=Math.floor(m/60),mm=m%60;return(min<0?'-':'')+pad(h)+'h'+pad(mm);}
+function calcHoras(rec){const e=timeToMin(rec.entrada),s=timeToMin(rec.saida),sa=timeToMin(rec.saida_almoco),ra=timeToMin(rec.retorno_almoco);if(!e||!s)return 0;let t=s-e;if(sa&&ra)t-=(ra-sa);return Math.round(t)/60;}
 function isWeekend(d){const[y,m,dd]=d.split('-').map(Number);const w=new Date(y,m-1,dd).getDay();return w===0||w===6;}
 
 setInterval(()=>{const n=new Date();document.getElementById('clock').textContent=pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());},1000);
@@ -281,9 +284,12 @@ function initMonthSelects(){
       const o=document.createElement('option');o.value=f.id;o.textContent=f.nome;
       document.getElementById('emp-select').appendChild(o);
       const o2=document.createElement('option');o2.value=f.id;o2.textContent=f.nome;
-      document.getElementById('lanc-emp').appendChild(o2);
+      document.getElementById('hist-emp-select').appendChild(o2);
+      const o3=document.createElement('option');o3.value=f.id;o3.textContent=f.nome;
+      document.getElementById('lanc-emp').appendChild(o3);
     });
-    // data padrão = hoje
+    // mostra seletor de funcionário no histórico para gestão
+    document.getElementById('hist-emp-select').style.display='block';
     document.getElementById('lanc-data').value=todayStr();
   }
 }
@@ -381,8 +387,17 @@ window.confirmPunch=async function(){
   showToast('✓ '+MARCACOES[pt].label+' registrada às '+time,'success');
 };
 
+window.onHistEmpChange=function(){
+  const empId=document.getElementById('hist-emp-select').value;
+  const f=FUNCIONARIOS.find(f=>f.id===empId);
+  if(f)document.getElementById('hist-emp-label').textContent=f.nome;
+  renderHistorico();
+};
+
 async function renderHistorico(){
-  const empId=document.getElementById('emp-select').value;
+  const empId=IS_GESTAO
+    ? document.getElementById('hist-emp-select').value
+    : document.getElementById('emp-select').value;
   const month=document.getElementById('hist-month').value;
   const tbody=document.getElementById('hist-body');
   if(!empId){tbody.innerHTML='<tr><td colspan="8" class="loading">Selecione um funcionário na tela Registrar</td></tr>';return;}
