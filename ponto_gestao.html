@@ -1,15 +1,15 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PontoWA — Gestão</title>
+<title>WA Locações — Ponto</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
   :root {
-    --bg:#0F1117;--surface:#1A1D27;--surface2:#222636;--border:#2E3347;
-    --accent:#6C63FF;--accent2:#9D96FF;--green:#22C55E;--red:#EF4444;
-    --yellow:#F59E0B;--text:#E8EAF0;--text2:#8B8FA8;--text3:#5A5E75;
+    --bg:#141414;--surface:#1E1E1E;--surface2:#2A2A2A;--border:#3A3A3A;
+    --accent:#C41E20;--accent2:#E8302F;--green:#22C55E;--red:#C41E20;
+    --yellow:#F59E0B;--text:#F5F5F5;--text2:#A0A0A0;--text3:#666666;
     --radius:14px;--radius-sm:8px;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -17,6 +17,8 @@
   nav{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:100;}
   .nav-logo{font-size:18px;font-weight:700;letter-spacing:-0.5px;}
   .nav-logo span{color:var(--accent2);}
+  .nav-logo .wa-w{color:#F5F5F5;}
+  .nav-logo .wa-a{color:var(--accent);}
   .nav-tabs{display:flex;gap:4px;background:var(--bg);padding:4px;border-radius:10px;}
   .nav-tab{padding:7px 16px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;color:var(--text2);border:none;background:transparent;transition:all .2s;font-family:'Inter',sans-serif;}
   .nav-tab.active{background:var(--accent);color:#fff;}
@@ -42,7 +44,7 @@
   .chip-green{background:#16311f;color:var(--green);}
   .chip-red{background:#2d1515;color:var(--red);}
   .chip-yellow{background:#2d2310;color:var(--yellow);}
-  .chip-blue{background:#1a1f3c;color:var(--accent2);}
+  .chip-blue{background:#2d1515;color:var(--accent2);}
   .chip::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;}
   .table-wrap{overflow-x:auto;}
   table{width:100%;border-collapse:collapse;font-size:13px;}
@@ -93,7 +95,7 @@
 </head>
 <body>
 <nav>
-  <div class="nav-logo">Ponto<span>WA</span></div>
+  <div class="nav-logo"><span class="wa-w">W</span><span class="wa-a">A</span> Locações</div>
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showView('registrar',this)">Registrar</button>
     <button class="nav-tab" onclick="showView('historico',this)">Histórico</button>
@@ -233,10 +235,10 @@ const JORNADA_H = 8;
 const DASHBOARD_PWD = 'wa2026';
 const IS_GESTAO = true;
 const FUNCIONARIOS = [
-  { id: "F01", nome: "Jizany Gomes da Silva", cor: "#6C63FF", bg: "#1a1730" },
-  { id: "F02", nome: "Emanuella Rodrigues Noleto", cor: "#22C55E", bg: "#16311f" },
-  { id: "F03", nome: "Alessandro Santos Rolin", cor: "#F59E0B", bg: "#2d2310" },
-  { id: "F04", nome: "Adrielly Rodrigues Noleto", cor: "#EC4899", bg: "#2d1229" }
+  { id: "F01", nome: "Jizany Gomes da Silva", cor: "#E8302F", bg: "#2d1515" },
+  { id: "F02", nome: "Emanuella Rodrigues Noleto", cor: "#E8302F", bg: "#2d1515" },
+  { id: "F03", nome: "Alessandro Santos Rolin", cor: "#E8302F", bg: "#2d1515" },
+  { id: "F04", nome: "Adrielly Rodrigues Noleto", cor: "#E8302F", bg: "#2d1515" }
 ];
 
 function pad(n){return String(n).padStart(2,'0');}
