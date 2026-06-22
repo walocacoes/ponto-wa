@@ -452,12 +452,9 @@ window.loadTodayRecord=async function(){
   const isSab=new Date().getDay()===6;
   ['btn-saida_almoco','btn-retorno_almoco'].forEach(id=>{
     const el=document.getElementById(id);
-    if(el)el.parentElement.style.display=isSab?'none':'';
+    if(el){el.style.visibility=isSab?'hidden':'visible';el.style.pointerEvents=isSab?'none':'auto';}
   });
-  // ajusta ORDER global para sábado
-  window.ORDEM_HOJE = isSab
-    ? ['entrada','saida']
-    : ['entrada','saida_almoco','retorno_almoco','saida'];
+  window.ORDEM_HOJE=isSab?['entrada','saida']:['entrada','saida_almoco','retorno_almoco','saida'];
 
   if(!empId){resetPunchBtns();return;}
   const rec=await getRecord(empId,todayStr());
