@@ -191,7 +191,7 @@ tr:hover td{background:var(--surface2);}
   <div class="section-title">Histórico</div>
   <div class="section-sub">Registros e auditoria</div>
   <div class="month-row">
-    <select id="hist-emp-select">
+    <select id="hist-emp-select" onchange="renderHistorico()">
       <option value="">Todos os funcionários</option>
     </select>
     <select id="hist-month" onchange="renderHistorico()"></select>
