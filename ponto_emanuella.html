@@ -424,7 +424,7 @@ async function renderHistorico(){
   if(!dates.length){tbody.innerHTML='<tr><td colspan="8" class="loading">Nenhum registro encontrado</td></tr>';return;}
   tbody.innerHTML=dates.map(date=>{
     const rec=records[date],horas=calcHoras(rec),saldo=horas-jornadaDia(date);
-    const complete=rec.entrada&&rec.saida_almoco&&rec.retorno_almoco&&rec.saida;
+    const isSab=new Date(date+'T12:00:00').getDay()===6;const complete=isSab?rec.entrada&&rec.saida:rec.entrada&&rec.saida_almoco&&rec.retorno_almoco&&rec.saida;
     let status='';
     if(!rec.entrada)status='<span class="badge badge-red">Falta</span>';
     else if(!complete)status='<span class="badge badge-yellow">Incompleto</span>';

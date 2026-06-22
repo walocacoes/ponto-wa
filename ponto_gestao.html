@@ -191,7 +191,7 @@ tr:hover td{background:var(--surface2);}
   <div class="section-title">Histórico</div>
   <div class="section-sub">Registros e auditoria</div>
   <div class="month-row">
-    <select id="hist-emp-select" onchange="renderHistorico()">
+    <select id="hist-emp-select">
       <option value="">Todos os funcionários</option>
     </select>
     <select id="hist-month" onchange="renderHistorico()"></select>
@@ -535,7 +535,7 @@ window.confirmPunch=async function(){
 };
 
 // ── MONITORAMENTO DIÁRIO ──
-async function renderMonitor(){
+window.renderMonitor=async function(){
   const today=todayStr();
   document.getElementById('monitor-cards').innerHTML='<div class="loading">Carregando...</div>';
   document.getElementById('monitor-alertas').innerHTML='<div class="loading">Carregando...</div>';
@@ -589,7 +589,7 @@ async function renderMonitor(){
 
 // ── HISTÓRICO ──
 let histCache=[];
-async function renderHistorico(){
+window.renderHistorico=async function(){
   const empFilter=document.getElementById('hist-emp-select').value;
   const month=document.getElementById('hist-month').value;
   const statusFilter=document.getElementById('hist-status').value;
@@ -605,7 +605,11 @@ async function renderHistorico(){
     Object.keys(empData).sort().forEach(date=>{
       const rec=empData[date];
       const horas=calcHoras(rec),saldo=horas-jornadaDia(date);
-      const complete=rec.entrada&&rec.saida_almoco&&rec.retorno_almoco&&rec.saida;
+      // sábado: completo com só entrada + saída
+      const isSab=new Date(...date.split('-').map((v,i)=>i===1?v-1:v)).getDay()===6;
+      const complete=isSab
+        ? rec.entrada&&rec.saida
+        : rec.entrada&&rec.saida_almoco&&rec.retorno_almoco&&rec.saida;
       let statusStr='';
       if(!rec.entrada)statusStr='Falta';
       else if(!complete)statusStr='Incompleto';
@@ -745,7 +749,7 @@ async function _executarSalvamento(empId,data,rec){
 let dashCache = { stats: [], allData: {}, month: '' };
 let graficoInstance = null;
 
-async function renderDashboard(){
+window.renderDashboard=async function(){
   const month=document.getElementById('dash-month').value;
   document.getElementById('dash-month-label').textContent=monthLabel(month);
   document.getElementById('emp-list').innerHTML='<div class="loading">Carregando...</div>';
