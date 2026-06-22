@@ -447,10 +447,23 @@ let pendingType=null;
 
 window.loadTodayRecord=async function(){
   const empId=document.getElementById('emp-select').value;
+
+  // sábado: esconde botões de almoço e ajusta sequência
+  const isSab=new Date().getDay()===6;
+  ['btn-saida_almoco','btn-retorno_almoco'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.parentElement.style.display=isSab?'none':'';
+  });
+  // ajusta ORDER global para sábado
+  window.ORDEM_HOJE = isSab
+    ? ['entrada','saida']
+    : ['entrada','saida_almoco','retorno_almoco','saida'];
+
   if(!empId){resetPunchBtns();return;}
   const rec=await getRecord(empId,todayStr());
   ORDER.forEach(k=>{
     const te=document.getElementById('time-'+k),btn=document.getElementById('btn-'+k);
+    if(!te||!btn)return;
     if(rec[k]){te.textContent=rec[k];btn.style.borderColor='#22C55E';btn.style.background='#16311f';}
     else{te.textContent='';btn.style.borderColor='var(--border)';btn.style.background='var(--surface2)';}
   });
@@ -505,13 +518,20 @@ window.confirmPunch=async function(){
     if(dist>100){showToast('Fora do alcance da loja ('+Math.round(dist)+'m)','error');return;}
   }catch(e){showToast('Não foi possível verificar localização','error');return;}
 
+  const ordemHoje = window.ORDEM_HOJE || ORDER;
   const rec=await getRecord(empId,todayStr());
-  for(let i=0;i<ORDER.indexOf(pt);i++){if(!rec[ORDER[i]]){showToast('Registre primeiro: '+MARCACOES[ORDER[i]].label,'error');return;}}
+  for(let i=0;i<ordemHoje.indexOf(pt);i++){if(!rec[ordemHoje[i]]){showToast('Registre primeiro: '+MARCACOES[ordemHoje[i]].label,'error');return;}}
   if(rec[pt]){showToast('Esse horário já foi registrado','error');return;}
   rec[pt]=time;
-  await saveRecord(empId,todayStr(),rec);
-  await loadTodayRecord();
+  // atualiza visual imediatamente
+  const btnEl=document.getElementById('btn-'+pt);
+  const timeEl=document.getElementById('time-'+pt);
+  if(btnEl){btnEl.style.borderColor='#22C55E';btnEl.style.background='#16311f';}
+  if(timeEl){timeEl.textContent=time;}
+  updateStatusRow(rec);
   showToast('✓ '+MARCACOES[pt].label+' registrada às '+time,'success');
+  // salva no Firebase em segundo plano
+  await saveRecord(empId,todayStr(),rec);
 };
 
 // ── MONITORAMENTO DIÁRIO ──
