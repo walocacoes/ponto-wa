@@ -678,7 +678,9 @@ window.salvarLancamento=async function(){
   const retorno_almoco=document.getElementById('lanc-retorno_almoco').value;
   const saida=document.getElementById('lanc-saida').value;
 
-  if(!entrada){showToast('Entrada é obrigatória','error');return;}
+  if(!entrada&&!saida_almoco&&!retorno_almoco&&!saida){
+    showToast('Preencha ao menos um horário','error');return;
+  }
 
   const rec={};
   if(entrada)rec.entrada=entrada;
