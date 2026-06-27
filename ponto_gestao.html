@@ -194,7 +194,7 @@ tr:hover td{background:var(--surface2);}
     <select id="hist-emp-select" onchange="renderHistorico()">
       <option value="">Todos os funcionários</option>
     </select>
-    <select id="hist-month" onchange="renderHistorico()"></select>
+    <select id="hist-month" onchange="document.getElementById('hist-data').value='';renderHistorico()"></select>
     <select id="hist-status" onchange="renderHistorico()">
       <option value="">Todos os status</option>
       <option value="OK">OK</option>
@@ -202,6 +202,7 @@ tr:hover td{background:var(--surface2);}
       <option value="Falta">Falta</option>
       <option value="Editado">Editado</option>
     </select>
+    <input type="date" id="hist-data" onchange="renderHistorico()" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;outline:none;flex:1;min-width:120px;">
   </div>
   <div class="card" style="margin-bottom:10px;">
     <div class="table-wrap">
@@ -225,6 +226,7 @@ tr:hover td{background:var(--surface2);}
     <div class="card-title">Funcionário e Data</div>
     <select class="sel" id="lanc-emp"></select>
     <input type="date" class="sel" id="lanc-data">
+    <div style="font-size:11px;color:#A0A0A0;margin-top:-8px;margin-bottom:14px;">Domingos podem ser lançados — as horas contam como hora extra (jornada prevista = 0h).</div>
     <div class="divider"></div>
     <div class="card-title">Horários</div>
     <div class="grid2" style="margin-bottom:14px;">
@@ -340,7 +342,7 @@ function timeToMin(t){if(!t)return null;const[h,m]=t.split(':').map(Number);retu
 function minToHHMM(min){const m=Math.round(Math.abs(min));const h=Math.floor(m/60),mm=m%60;return(min<0?'-':'')+pad(h)+'h'+pad(mm);}
 function calcHoras(rec){const e=timeToMin(rec.entrada),s=timeToMin(rec.saida),sa=timeToMin(rec.saida_almoco),ra=timeToMin(rec.retorno_almoco);if(!e||!s)return 0;let t=s-e;if(sa&&ra)t-=(ra-sa);return Math.round(t)/60;}
 function isWeekend(d){const[y,m,dd]=d.split('-').map(Number);const w=new Date(y,m-1,dd).getDay();return w===0;}
-function jornadaDia(dateStr){const[y,m,d]=dateStr.split('-').map(Number);const w=new Date(y,m-1,d).getDay();return w===6?4:8;}
+function jornadaDia(dateStr){const[y,m,d]=dateStr.split('-').map(Number);const w=new Date(y,m-1,d).getDay();return w===6?4:w===0?0:8;}
 function initials(nome){return nome.split(' ').slice(0,2).map(w=>w[0]).join('');}
 
 // ── INCONSISTÊNCIAS ──
@@ -589,6 +591,7 @@ window.renderHistorico=async function(){
   const empFilter=document.getElementById('hist-emp-select').value;
   const month=document.getElementById('hist-month').value;
   const statusFilter=document.getElementById('hist-status').value;
+  const dataFilter=document.getElementById('hist-data').value;
   const tbody=document.getElementById('hist-body');
   tbody.innerHTML='<tr><td colspan="10" class="loading">Carregando...</td></tr>';
 
@@ -601,9 +604,9 @@ window.renderHistorico=async function(){
     Object.keys(empData).sort().forEach(date=>{
       const rec=empData[date];
       const horas=calcHoras(rec),saldo=horas-jornadaDia(date);
-      // sábado: completo com só entrada + saída
-      const isSab=new Date(...date.split('-').map((v,i)=>i===1?v-1:v)).getDay()===6;
-      const complete=isSab
+      const isSab=new Date(date+'T12:00:00').getDay()===6;
+      const isDom=new Date(date+'T12:00:00').getDay()===0;
+      const complete=(isSab||isDom)
         ? rec.entrada&&rec.saida
         : rec.entrada&&rec.saida_almoco&&rec.retorno_almoco&&rec.saida;
       let statusStr='';
@@ -612,6 +615,7 @@ window.renderHistorico=async function(){
       else statusStr='OK';
       if(rec._editado)statusStr='Editado';
       if(statusFilter&&statusStr!==statusFilter)return;
+      if(dataFilter&&date!==dataFilter)return;
       histCache.push({date,f,rec,horas,saldo,statusStr});
     });
   });
@@ -757,7 +761,10 @@ window.renderDashboard=async function(){
   let tF=0,tE=0,tN=0,tR=0;
   const stats=FUNCIONARIOS.map(f=>{
     const ed=allData[f.id]||{};
-    const dias=Object.keys(ed).filter(d=>!isWeekend(d));
+    const dias=Object.keys(ed).filter(d=>{
+      const w=new Date(d+'T12:00:00').getDay();
+      return w!==0 || ed[d].entrada; // inclui domingo se tiver registro
+    });
     let hT=0,fa=0,sM=0;
     dias.forEach(d=>{tR++;const rec=ed[d];if(!rec.entrada){fa++;return;}const h=calcHoras(rec);hT+=h;sM+=(h-jornadaDia(d))*60;});
     tF+=fa;if(sM>0)tE+=sM;else tN+=Math.abs(sM);
