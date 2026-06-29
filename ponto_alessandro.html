@@ -447,6 +447,14 @@ async function renderHistorico(){
   const records=await getMonthRecords(empId,month);
   const dates=Object.keys(records).sort();
 
+  // buscar feriados do mês
+  let feriadosDoMes=[];
+  try{
+    const snap=await getDocs(collection(db,'feriados'));
+    snap.forEach(d=>{if(d.id.startsWith(month))feriadosDoMes.push({date:d.id,desc:d.data().descricao||''});});
+    feriadosDoMes.sort((a,b)=>a.date.localeCompare(b.date));
+  }catch{}
+
   // calcular saldo do mês e acumulado (só para funcionários, não gestão)
   if(!IS_GESTAO){
     const ontem=new Date();ontem.setDate(ontem.getDate()-1);ontem.setHours(23,59,59);
@@ -492,10 +500,26 @@ async function renderHistorico(){
     }
   }
 
-  if(!dates.length){tbody.innerHTML='<tr><td colspan="8" class="loading">Nenhum registro encontrado</td></tr>';return;}
-  tbody.innerHTML=dates.map(date=>{
-    const rec=records[date],horas=calcHoras(rec),saldo=horas-jornadaDia(date);
-    const isSab=new Date(date+'T12:00:00').getDay()===6;const complete=isSab?rec.entrada&&rec.saida:rec.entrada&&rec.saida_almoco&&rec.retorno_almoco&&rec.saida;
+  if(!dates.length && !feriadosDoMes.length){tbody.innerHTML='<tr><td colspan="8" class="loading">Nenhum registro encontrado</td></tr>';return;}
+
+  // combinar registros normais + feriados, ordenados por data
+  const todasLinhas = [];
+  dates.forEach(date=>{
+    todasLinhas.push({date, tipo:'normal', rec:records[date]});
+  });
+  feriadosDoMes.forEach(f=>{
+    todasLinhas.push({date:f.date, tipo:'feriado', desc:f.desc});
+  });
+  todasLinhas.sort((a,b)=>a.date.localeCompare(b.date));
+
+  tbody.innerHTML=todasLinhas.map(({date,tipo,rec,desc})=>{
+    if(tipo==='feriado'){
+      return '<tr style="background:#1a2535 !important;"><td>'+formatDate(date)+'</td><td colspan="5" style="color:#60a5fa;font-style:italic;">🎉 Feriado — '+desc+'</td><td>—</td><td><span class="badge" style="background:#1a2535;color:#60a5fa;border:1px solid #60a5fa44;">Feriado</span></td></tr>';
+    }
+    const horas=calcHoras(rec),saldo=horas-jornadaDia(date);
+    const isSab=new Date(date+'T12:00:00').getDay()===6;
+    const isDom=new Date(date+'T12:00:00').getDay()===0;
+    const complete=(isSab||isDom)?rec.entrada&&rec.saida:rec.entrada&&rec.saida_almoco&&rec.retorno_almoco&&rec.saida;
     let status='';
     if(!rec.entrada)status='<span class="badge badge-red">Falta</span>';
     else if(!complete)status='<span class="badge badge-yellow">Incompleto</span>';
