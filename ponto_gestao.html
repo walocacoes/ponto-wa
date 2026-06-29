@@ -200,7 +200,7 @@ tr:hover td{background:var(--surface2);}
       <option value="OK">OK</option>
       <option value="Incompleto">Incompleto</option>
       <option value="Falta">Falta</option>
-      <option value="Editado">Editado</option>
+      <option value="Feriado">Feriado</option>
     </select>
     <input type="date" id="hist-data" onchange="renderHistorico()" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;outline:none;flex:1;min-width:120px;">
   </div>
@@ -242,6 +242,25 @@ tr:hover td{background:var(--surface2);}
     </div>
     <div id="lanc-alertas" style="margin-top:10px;"></div>
     <button class="btn" onclick="salvarLancamento()" style="margin-top:14px;">Salvar Lançamento</button>
+  </div>
+
+  <!-- FERIADOS -->
+  <div class="card">
+    <div class="card-title">Feriados e Folgas</div>
+    <div style="font-size:12px;color:#A0A0A0;margin-bottom:14px;">Dias cadastrados aqui não contam como falta para nenhum funcionário.</div>
+    <div class="grid2" style="margin-bottom:12px;">
+      <div class="inp-wrap">
+        <div class="inp-label">Data</div>
+        <input type="date" class="inp" id="fer-data">
+      </div>
+      <div class="inp-wrap">
+        <div class="inp-label">Descrição</div>
+        <input type="text" class="inp" id="fer-desc" placeholder="Ex: Corpus Christi">
+      </div>
+    </div>
+    <button class="btn" onclick="salvarFeriado()" style="margin-top:4px;">Cadastrar Feriado</button>
+    <div class="divider"></div>
+    <div id="fer-lista"><div class="loading">Carregando...</div></div>
   </div>
 </div>
 
@@ -309,7 +328,7 @@ tr:hover td{background:var(--surface2);}
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCaIDSapH5BVAEKFvK352ktJUT4wrmbvxQ",
@@ -434,6 +453,7 @@ window.showView=function(name,btn){
   if(name==='historico')renderHistorico();
   if(name==='dashboard')renderDashboard();
   if(name==='monitor')renderMonitor();
+  if(name==='lancamento'){loadFeriados().then(renderFeriados);}
 };
 
 // ── PONTO ──
@@ -600,10 +620,14 @@ window.renderHistorico=async function(){
 
   const todosUteis = diasUteisDoMes(month);
 
+  // também incluir feriados do mês no histórico
+  const feriadosDoMes = [...feriadosCache].filter(d => d.startsWith(month));
+
   FUNCIONARIOS.forEach(f=>{
     if(empFilter&&f.id!==empFilter)return;
     const empData=allData[f.id]||{};
 
+    // dias úteis normais
     todosUteis.forEach(date=>{
       const rec=empData[date]||{};
       const horas=calcHoras(rec),saldo=horas-jornadaDia(date);
@@ -619,6 +643,14 @@ window.renderHistorico=async function(){
       if(dataFilter&&date!==dataFilter)return;
       histCache.push({date,f,rec,horas,saldo,statusStr});
     });
+
+    // feriados — aparecem uma vez por funcionário
+    if(!statusFilter||statusFilter==='Feriado'){
+      feriadosDoMes.forEach(date=>{
+        if(dataFilter&&date!==dataFilter)return;
+        histCache.push({date,f,rec:{_feriado:true},horas:0,saldo:0,statusStr:'Feriado'});
+      });
+    }
   });
 
   if(!histCache.length){tbody.innerHTML='<tr><td colspan="10" class="loading">Nenhum registro encontrado</td></tr>';return;}
@@ -630,6 +662,7 @@ window.renderHistorico=async function(){
       'Incompleto':'<span class="badge bg-yellow">Incompleto</span>',
       'Falta':'<span class="badge bg-red">Falta</span>',
       'Editado':'<span class="badge bg-orange">✏️ Editado</span>',
+      'Feriado':'<span class="badge bg-blue">🎉 Feriado</span>',
     }[statusStr]||'';
     const auditoria=rec._editado
       ? `<span style="font-size:10px;color:var(--text3);">${rec._editado_por||'gestão'}<br>${rec._editado_em||''}</span>`
@@ -752,18 +785,22 @@ async function _executarSalvamento(empId,data,rec){
 let dashCache = { stats: [], allData: {}, month: '' };
 let graficoInstance = null;
 
+const INICIO_SISTEMA = '2026-06-18'; // data de início do uso do sistema
+
 // Retorna todos os dias úteis (seg-sab) de um mês até hoje
 function diasUteisDoMes(month){
   const [y,m] = month.split('-').map(Number);
   const hoje = new Date();
+  const inicio = new Date(INICIO_SISTEMA+'T12:00:00');
   const dias = [];
   const ultimo = new Date(y, m, 0).getDate();
   for(let d=1; d<=ultimo; d++){
     const dt = new Date(y, m-1, d);
     const w = dt.getDay();
-    // só dias úteis (seg=1 a sab=6), só até hoje
-    if(w>=1 && w<=6 && dt <= hoje){
-      dias.push(`${y}-${pad(m)}-${pad(d)}`);
+    const ds = `${y}-${pad(m)}-${pad(d)}`;
+    // só dias úteis (seg=1 a sab=6), só até hoje, só a partir do início do sistema, sem feriados
+    if(w>=1 && w<=6 && dt <= hoje && dt >= inicio && !feriadosCache.has(ds)){
+      dias.push(ds);
     }
   }
   return dias;
@@ -872,7 +909,60 @@ function renderGrafico(stats){
   });
 }
 
-// ── EXPORTAÇÃO PDF ──
+// ── FERIADOS ──
+let feriadosCache = new Set();
+
+async function loadFeriados(){
+  try{
+    const snap = await getDocs(collection(db,'feriados'));
+    feriadosCache = new Set();
+    snap.forEach(d => feriadosCache.add(d.id));
+  }catch{ feriadosCache = new Set(); }
+}
+
+async function renderFeriados(){
+  try{
+    const snap = await getDocs(collection(db,'feriados'));
+    const lista = [];
+    snap.forEach(d => lista.push({id: d.id, ...d.data()}));
+    lista.sort((a,b) => a.id.localeCompare(b.id));
+    const el = document.getElementById('fer-lista');
+    if(!lista.length){
+      el.innerHTML = '<div style="color:var(--text3);font-size:13px;">Nenhum feriado cadastrado.</div>';
+      return;
+    }
+    el.innerHTML = lista.map(f => `
+      <div class="emp-row" style="padding:10px 0;">
+        <div>
+          <div class="emp-name">${formatDate(f.id)}</div>
+          <div class="emp-sub">${f.descricao||''}</div>
+        </div>
+        <button onclick="excluirFeriado('${f.id}')" style="margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--text2);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-family:Inter,sans-serif;">Remover</button>
+      </div>`).join('');
+  }catch(e){ console.error(e); }
+}
+
+window.salvarFeriado = async function(){
+  const data = document.getElementById('fer-data').value;
+  const desc = document.getElementById('fer-desc').value.trim();
+  if(!data){ showToast('Selecione uma data','error'); return; }
+  if(!desc){ showToast('Informe a descrição do feriado','error'); return; }
+  await setDoc(doc(db,'feriados',data), { descricao: desc });
+  feriadosCache.add(data);
+  document.getElementById('fer-data').value = '';
+  document.getElementById('fer-desc').value = '';
+  showToast('✓ Feriado cadastrado','success');
+  renderFeriados();
+};
+
+window.excluirFeriado = async function(data){
+  await deleteDoc(doc(db,'feriados',data));
+  feriadosCache.delete(data);
+  showToast('Feriado removido','success');
+  renderFeriados();
+};
+
+
 function buildRows(empId, allData, month){
   const rows=[];
   const funcs=empId?FUNCIONARIOS.filter(f=>f.id===empId):FUNCIONARIOS;
@@ -1005,7 +1095,7 @@ window.showToast=function(msg,type='success'){const t=document.getElementById('t
 
 // ── START ──
 initSelects();
-loadTodayRecord();
+loadFeriados().then(()=>loadTodayRecord());
 </script>
 </body>
 </html>
