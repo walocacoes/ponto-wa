@@ -877,6 +877,7 @@ window.renderDashboard=async function(){
   dashCache.allData=allData; dashCache.month=month;
 
   const todosUteis = diasUteisDoMes(month);
+  const ontem = new Date(); ontem.setDate(ontem.getDate()-1); ontem.setHours(23,59,59);
 
   let tF=0,tE=0,tN=0,tR=0;
   const stats=FUNCIONARIOS.map(f=>{
@@ -884,25 +885,29 @@ window.renderDashboard=async function(){
     let hT=0,fa=0,sM=0;
 
     todosUteis.forEach(d=>{
+      const dt=new Date(d+'T12:00:00');
       const rec=ed[d];
       if(!rec||!rec.entrada){
-        fa++; // conta falta mas não mexe no saldo
+        if(dt<=ontem) fa++; // só conta falta se o dia já passou
         return;
       }
+      if(dt>ontem) return; // ignora hoje se ainda não terminou
+      if(!rec.saida) return; // ignora dias incompletos
       tR++;
       const h=calcHoras(rec);
       hT+=h;
-      sM+=(h-jornadaDia(d))*60; // saldo só de dias trabalhados
+      sM+=(h-jornadaDia(d))*60;
     });
 
-    // domingos com registro extra
+    // domingos com registro completo
     Object.keys(ed).forEach(d=>{
       const w=new Date(d+'T12:00:00').getDay();
-      if(w===0&&ed[d].entrada){
+      const dt=new Date(d+'T12:00:00');
+      if(w===0&&ed[d].entrada&&ed[d].saida&&dt<=ontem){
         tR++;
         const h=calcHoras(ed[d]);
         hT+=h;
-        sM+=h*60; // domingo = tudo extra
+        sM+=h*60;
       }
     });
 
