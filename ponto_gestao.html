@@ -805,14 +805,19 @@ async function getAllRecordsDesdeInicio(){
 }
 
 // Calcula saldo acumulado de um funcionário desde o marco zero
-// Saldo acumulado = soma de (horas trabalhadas - horas previstas) de cada dia com registro
-// Faltas não afetam o banco. Dias sem registro são ignorados.
+// Saldo acumulado = soma de (horas trabalhadas - horas previstas) dos dias com registro até ontem
+// Faltas e dias futuros são ignorados completamente.
 function calcSaldoAcumulado(empId, todosRegistros){
   const ed = todosRegistros[empId] || {};
+  const ontem = new Date();
+  ontem.setDate(ontem.getDate()-1);
+  ontem.setHours(23,59,59);
   let saldoMin = 0;
   Object.keys(ed).sort().forEach(ds=>{
+    const dt = new Date(ds+'T12:00:00');
+    if(dt > ontem) return; // ignora hoje e dias futuros
     const rec = ed[ds];
-    if(!rec || !rec.entrada) return; // sem registro ou falta: ignora
+    if(!rec || !rec.entrada) return; // falta ou sem registro: ignora
     const h = calcHoras(rec);
     saldoMin += (h - jornadaDia(ds)) * 60;
   });
@@ -880,16 +885,14 @@ window.renderDashboard=async function(){
 
     todosUteis.forEach(d=>{
       const rec=ed[d];
-      // dia sem nenhum registro = falta
       if(!rec||!rec.entrada){
-        fa++;
-        sM-=jornadaDia(d)*60;
+        fa++; // conta falta mas não mexe no saldo
         return;
       }
       tR++;
       const h=calcHoras(rec);
       hT+=h;
-      sM+=(h-jornadaDia(d))*60;
+      sM+=(h-jornadaDia(d))*60; // saldo só de dias trabalhados
     });
 
     // domingos com registro extra

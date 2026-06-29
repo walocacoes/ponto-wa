@@ -466,11 +466,14 @@ async function renderHistorico(){
       saldoEl.textContent=(saldoMin>=0?'+':'')+minToHHMM(Math.abs(saldoMin));
       saldoEl.style.color=sc;
 
-      // saldo acumulado simples — soma todos os registros desde o início
+      // saldo acumulado — só dias com registro até ontem
       const allRec=await getAllMonthRecords('');
+      const ontem=new Date();ontem.setDate(ontem.getDate()-1);ontem.setHours(23,59,59);
       let saldoAcum=0;
       const empData=allRec[empId]||{};
       Object.keys(empData).sort().forEach(d=>{
+        const dt=new Date(d+'T12:00:00');
+        if(dt>ontem)return;
         const r=empData[d];
         if(!r||!r.entrada)return;
         saldoAcum+=(calcHoras(r)-jornadaDia(d))*60;
