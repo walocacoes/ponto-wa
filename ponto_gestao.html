@@ -824,15 +824,16 @@ function calcSaldoAcumulado(empId, todosRegistros){
   return Math.round(saldoMin);
 }
 
-// Alerta CLT: verifica se o saldo mais antigo ainda não compensado tem mais de 5 meses
+// Alerta CLT: retorna {horas, vencimento} se houver saldo positivo com mais de 5 meses
 function alertaCLT(empId, todosRegistros){
   const ed = todosRegistros[empId] || {};
   const hoje = new Date();
   const limite = new Date(hoje);
   limite.setMonth(limite.getMonth()-5);
 
-  // soma saldo dos dias com mais de 5 meses
   let saldoAntigo = 0;
+  let dataAntigaMais = null;
+
   Object.keys(ed).sort().forEach(ds=>{
     const dt = new Date(ds+'T12:00:00');
     if(dt > limite) return;
@@ -840,8 +841,18 @@ function alertaCLT(empId, todosRegistros){
     if(!rec||!rec.entrada) return;
     const h = calcHoras(rec);
     saldoAntigo += (h - jornadaDia(ds)) * 60;
+    if(!dataAntigaMais) dataAntigaMais = ds;
   });
-  return saldoAntigo > 0;
+
+  if(saldoAntigo <= 0 || !dataAntigaMais) return null;
+
+  // calcular mês de vencimento (6 meses após o registro mais antigo)
+  const dtAntiga = new Date(dataAntigaMais+'T12:00:00');
+  dtAntiga.setMonth(dtAntiga.getMonth()+6);
+  const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const vencimento = meses[dtAntiga.getMonth()]+'/'+dtAntiga.getFullYear();
+
+  return { horas: Math.round(saldoAntigo), vencimento };
 }
 
 
@@ -934,18 +945,24 @@ window.renderDashboard=async function(){
     const scAcum = saldoAcum>=0?'#22C55E':'#E8302F';
     const slAcum = (saldoAcum>=0?'+':'')+minToHHMM(Math.abs(saldoAcum));
     const alertaClt = alertaCLT(f.id, todosRegistros);
+    const alertaHtml = alertaClt
+      ? `<div style="display:flex;align-items:center;gap:6px;margin-top:6px;background:#2d2310;border:0.5px solid #F59E0B44;border-radius:6px;padding:5px 10px;width:fit-content;">
+           <span style="font-size:13px;color:#F59E0B;">⏰</span>
+           <span style="font-size:11px;color:#F59E0B;font-weight:500;">${minToHHMM(alertaClt.horas)} vencem em ${alertaClt.vencimento} — use antes do prazo (CLT 6 meses)</span>
+         </div>`
+      : '';
     return `<div class="emp-row" style="flex-direction:column;align-items:stretch;gap:8px;">
       <div style="display:flex;align-items:center;gap:12px;">
         <div class="emp-av">${initials(f.nome)}</div>
         <div style="flex:1">
           <div class="emp-name">${f.nome}</div>
           <div class="emp-sub" style="color:${fa>0?'#E8302F':'#A0A0A0'}">${fa===0?'✓ Sem faltas':'⚠️ '+fa+' falta'+(fa>1?'s':'')}</div>
+          ${alertaHtml}
         </div>
         <div class="emp-right">
           <div class="emp-hours">${minToHHMM(Math.round(hT*60))}</div>
           <div style="font-size:11px;color:${scMes};margin-top:2px;font-weight:600;">mês: ${slMes}</div>
           <div style="font-size:13px;color:${scAcum};margin-top:4px;font-weight:700;">acumulado: ${slAcum}</div>
-          ${alertaClt?'<div style="font-size:10px;color:#F59E0B;margin-top:2px;">⚠️ Horas próximas do vencimento (CLT 6 meses)</div>':''}
         </div>
       </div>
       <div style="background:var(--border);border-radius:4px;height:4px;overflow:hidden;">
