@@ -912,7 +912,7 @@ window.renderDashboard=async function(){
     });
 
     tF+=fa;
-    if(sM>0)tE+=sM; else tN+=Math.abs(sM);
+    if(sM>0)tE+=sM; else if(sM<0) tN+=Math.abs(sM);
     return{f,hT,fa,sM,dias:todosUteis.length};
   });
   dashCache.stats=stats;
