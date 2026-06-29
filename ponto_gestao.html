@@ -237,6 +237,21 @@ tr:hover td{background:var(--surface2);}
     </div>
     <div class="divider"></div>
     <div class="inp-wrap">
+      <div class="inp-label">Tipo de lançamento</div>
+      <select class="sel" id="lanc-tipo" onchange="toggleTipoLancamento()" style="margin-bottom:0;">
+        <option value="normal">Lançamento normal</option>
+        <option value="compensacao">Usar banco de horas (compensação)</option>
+      </select>
+    </div>
+    <div id="lanc-compensacao-box" style="display:none;background:#1a2535;border:1px solid #60a5fa44;border-radius:8px;padding:14px;margin-top:10px;">
+      <div style="font-size:12px;color:#60a5fa;margin-bottom:10px;">⏱ O funcionário utilizará horas do banco. Informe quantas horas serão compensadas neste dia.</div>
+      <div class="inp-wrap" style="margin-bottom:0;">
+        <div class="inp-label">Horas a compensar (ex: 2.5 = 2h30)</div>
+        <input type="number" class="inp" id="lanc-horas-comp" placeholder="Ex: 2.5" min="0.5" max="8" step="0.5">
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="inp-wrap">
       <div class="inp-label">Motivo da alteração *</div>
       <input type="text" class="inp" id="lanc-motivo" placeholder="Ex: Funcionário esqueceu de bater saída">
     </div>
@@ -635,10 +650,11 @@ window.renderHistorico=async function(){
       const isDom=new Date(date+'T12:00:00').getDay()===0;
       const complete=(isSab||isDom)?rec.entrada&&rec.saida:rec.entrada&&rec.saida_almoco&&rec.retorno_almoco&&rec.saida;
       let statusStr='';
-      if(!rec.entrada)statusStr='Falta';
+      if(rec._compensacao)statusStr='Compensação';
+      else if(!rec.entrada)statusStr='Falta';
       else if(!complete)statusStr='Incompleto';
       else statusStr='OK';
-      if(rec._editado)statusStr='Editado';
+      if(rec._editado&&!rec._compensacao)statusStr='Editado';
       if(statusFilter&&statusStr!==statusFilter)return;
       if(dataFilter&&date!==dataFilter)return;
       histCache.push({date,f,rec,horas,saldo,statusStr});
@@ -663,6 +679,7 @@ window.renderHistorico=async function(){
       'Falta':'<span class="badge bg-red">Falta</span>',
       'Editado':'<span class="badge bg-orange">✏️ Editado</span>',
       'Feriado':'<span class="badge bg-blue">🎉 Feriado</span>',
+      'Compensação':'<span class="badge bg-blue">⏱ Compensação</span>',
     }[statusStr]||'';
     const auditoria=rec._editado
       ? `<span style="font-size:10px;color:var(--text3);">${rec._editado_por||'gestão'}<br>${rec._editado_em||''}</span>`
@@ -704,12 +721,54 @@ window.exportarCSV=function(){
 };
 
 // ── LANÇAMENTO MANUAL ──
+window.toggleTipoLancamento=function(){
+  const tipo=document.getElementById('lanc-tipo').value;
+  const box=document.getElementById('lanc-compensacao-box');
+  const horariosBox=document.querySelector('#view-lancamento .grid2');
+  box.style.display=tipo==='compensacao'?'block':'none';
+  if(horariosBox) horariosBox.style.opacity=tipo==='compensacao'?'0.4':'1';
+};
+
 window.salvarLancamento=async function(){
   const empId=document.getElementById('lanc-emp').value;
   const data=document.getElementById('lanc-data').value;
   const motivo=document.getElementById('lanc-motivo').value.trim();
   if(!empId||!data){showToast('Selecione funcionário e data','error');return;}
   if(!motivo){showToast('Informe o motivo da alteração','error');return;}
+
+  const tipo=document.getElementById('lanc-tipo').value;
+
+  // COMPENSAÇÃO DE BANCO DE HORAS
+  if(tipo==='compensacao'){
+    const hComp=parseFloat(document.getElementById('lanc-horas-comp').value);
+    if(!hComp||hComp<=0){showToast('Informe as horas a compensar','error');return;}
+
+    // verificar saldo disponível
+    const todosReg=await getAllRecordsDesdeInicio();
+    const saldoAtual=calcSaldoAcumulado(empId,todosReg,feriadosCache);
+    const saldoHoras=saldoAtual/60;
+
+    if(saldoHoras<hComp){
+      showToast(`Saldo insuficiente. Disponível: ${minToHHMM(saldoAtual)}`, 'error');
+      return;
+    }
+
+    const rec={
+      _compensacao: true,
+      _horas_compensadas: Math.round(hComp*60),
+      _editado: true,
+      _editado_por: 'Gestão',
+      _editado_em: new Date().toLocaleDateString('pt-BR')+' '+nowStr(),
+      _motivo: motivo
+    };
+    await saveRecord(empId,data,rec);
+    showToast(`✓ Compensação de ${minToHHMM(Math.round(hComp*60))} registrada`,'success');
+    document.getElementById('lanc-horas-comp').value='';
+    document.getElementById('lanc-motivo').value='';
+    document.getElementById('lanc-tipo').value='normal';
+    toggleTipoLancamento();
+    return;
+  }
 
   const entrada=document.getElementById('lanc-entrada').value;
   const saida_almoco=document.getElementById('lanc-saida_almoco').value;
@@ -780,6 +839,81 @@ async function _executarSalvamento(empId,data,rec){
     document.getElementById('lanc-alertas').innerHTML=incs.map(a=>`<div class="alert-box alert-red">⚠️ ${a}</div>`).join('');
   });
 });
+
+// ── BANCO DE HORAS ACUMULADO ──
+const MARCO_ZERO = '2026-06-01';
+
+// Busca todos os registros de todos os meses desde o marco zero até hoje
+async function getAllRecordsDesdeInicio(){
+  try{
+    const snap = await getDocs(collection(db,'ponto'));
+    const r = {};
+    snap.forEach(d=>{
+      const parts = d.id.split('_');
+      if(parts.length===2 && parts[1] >= MARCO_ZERO){
+        if(!r[parts[0]]) r[parts[0]] = {};
+        r[parts[0]][parts[1]] = d.data();
+      }
+    });
+    return r;
+  }catch{ return {}; }
+}
+
+// Calcula saldo acumulado de um funcionário desde o marco zero
+function calcSaldoAcumulado(empId, todosRegistros, feriadosSet){
+  const ed = todosRegistros[empId] || {};
+  const hoje = new Date();
+  const inicio = new Date(MARCO_ZERO+'T12:00:00');
+  let saldoMin = 0;
+
+  // gerar todos os dias úteis desde o início até hoje
+  const cur = new Date(inicio);
+  while(cur <= hoje){
+    const w = cur.getDay();
+    const ds = cur.getFullYear()+'-'+pad(cur.getMonth()+1)+'-'+pad(cur.getDate());
+    if(w>=1 && w<=6 && !feriadosSet.has(ds)){
+      const rec = ed[ds] || {};
+      if(rec._compensacao){
+        // dia de compensação — subtrai as horas combinadas
+        saldoMin -= (rec._horas_compensadas || 0);
+      } else if(!rec.entrada){
+        // falta não abate banco — subtrai da jornada normal
+        saldoMin -= jornadaDia(ds) * 60;
+      } else {
+        const h = calcHoras(rec);
+        saldoMin += (h - jornadaDia(ds)) * 60;
+      }
+    }
+    cur.setDate(cur.getDate()+1);
+  }
+  return saldoMin;
+}
+
+// Verifica se há saldo positivo há mais de 5 meses (alerta CLT)
+function alertaCLT(empId, todosRegistros, feriadosSet){
+  const ed = todosRegistros[empId] || {};
+  const hoje = new Date();
+  // verifica saldo acumulado até 5 meses atrás
+  const limite = new Date(hoje);
+  limite.setMonth(limite.getMonth()-5);
+  const limiteStr = limite.getFullYear()+'-'+pad(limite.getMonth()+1)+'-'+pad(limite.getDate());
+
+  // saldo até a data limite
+  let saldoLimite = 0;
+  const inicio = new Date(MARCO_ZERO+'T12:00:00');
+  const cur = new Date(inicio);
+  while(cur <= limite){
+    const w = cur.getDay();
+    const ds = cur.getFullYear()+'-'+pad(cur.getMonth()+1)+'-'+pad(cur.getDate());
+    if(w>=1 && w<=6 && !feriadosSet.has(ds)){
+      const rec = ed[ds] || {};
+      if(!rec.entrada) saldoLimite -= jornadaDia(ds)*60;
+      else saldoLimite += (calcHoras(rec)-jornadaDia(ds))*60;
+    }
+    cur.setDate(cur.getDate()+1);
+  }
+  return saldoLimite > 0; // se ainda positivo após 5 meses = alerta
+}
 
 // ── DASHBOARD ──
 let dashCache = { stats: [], allData: {}, month: '' };
@@ -857,21 +991,33 @@ window.renderDashboard=async function(){
     <div class="stat-card"><div class="stat-label">Banco negativo</div><div class="stat-value ${tN>0?'c-red':'c-green'}">${minToHHMM(tN)}</div><div class="stat-sub">a compensar</div></div>
   `;
 
-  // Banco de horas com barra de progresso
+  // buscar saldo acumulado de todos
+  const todosRegistros = await getAllRecordsDesdeInicio();
+
+  // Banco de horas com saldo acumulado
   document.getElementById('emp-list').innerHTML=stats.map(({f,hT,fa,sM})=>{
-    const sl=(sM>=0?'+':'')+minToHHMM(Math.abs(sM)),sc=sM>=0?'#22C55E':'#E8302F';
+    const slMes=(sM>=0?'+':'')+minToHHMM(Math.abs(sM)),scMes=sM>=0?'#22C55E':'#E8302F';
     const pct=Math.min(100,Math.round((hT/(22*8))*100));
+    const saldoAcum = calcSaldoAcumulado(f.id, todosRegistros, feriadosCache);
+    const scAcum = saldoAcum>=0?'#22C55E':'#E8302F';
+    const slAcum = (saldoAcum>=0?'+':'')+minToHHMM(Math.abs(saldoAcum));
+    const alertaClt = alertaCLT(f.id, todosRegistros, feriadosCache);
     return `<div class="emp-row" style="flex-direction:column;align-items:stretch;gap:8px;">
       <div style="display:flex;align-items:center;gap:12px;">
         <div class="emp-av">${initials(f.nome)}</div>
-        <div style="flex:1"><div class="emp-name">${f.nome}</div><div class="emp-sub" style="color:${fa>0?'#E8302F':'#A0A0A0'}">${fa===0?'✓ Sem faltas':'⚠️ '+fa+' falta'+(fa>1?'s':'')}</div></div>
+        <div style="flex:1">
+          <div class="emp-name">${f.nome}</div>
+          <div class="emp-sub" style="color:${fa>0?'#E8302F':'#A0A0A0'}">${fa===0?'✓ Sem faltas':'⚠️ '+fa+' falta'+(fa>1?'s':'')}</div>
+        </div>
         <div class="emp-right">
           <div class="emp-hours">${minToHHMM(Math.round(hT*60))}</div>
-          <div style="font-size:11px;color:${sc};margin-top:2px;font-weight:600;">${sM!==0?'saldo '+sl:'saldo 00h00'}</div>
+          <div style="font-size:11px;color:${scMes};margin-top:2px;font-weight:600;">mês: ${sM!==0?slMes:'00h00'}</div>
+          <div style="font-size:12px;color:${scAcum};margin-top:4px;font-weight:700;">acumulado: ${slAcum}</div>
+          ${alertaClt?'<div style="font-size:10px;color:#F59E0B;margin-top:2px;">⚠️ Vence em breve (CLT)</div>':''}
         </div>
       </div>
       <div style="background:var(--border);border-radius:4px;height:4px;overflow:hidden;">
-        <div style="background:${sc};height:100%;width:${pct}%;border-radius:4px;transition:width .5s;"></div>
+        <div style="background:${scMes};height:100%;width:${pct}%;border-radius:4px;transition:width .5s;"></div>
       </div>
     </div>`;
   }).join('');

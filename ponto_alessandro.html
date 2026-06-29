@@ -132,6 +132,31 @@
 <div class="view" id="view-historico">
   <div class="section-title">Histórico</div>
   <div class="section-sub" id="hist-emp-label">Selecione um funcionário</div>
+
+  <!-- card de saldo do mês -->
+  <div id="saldo-card" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:14px;">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);margin-bottom:14px;">Banco de Horas</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">H. Trabalhadas (mês)</div>
+        <div id="saldo-trabalhadas" style="font-size:22px;font-weight:700;letter-spacing:-1px;">—</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">H. Previstas (mês)</div>
+        <div id="saldo-previstas" style="font-size:22px;font-weight:700;letter-spacing:-1px;">—</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Saldo do mês</div>
+        <div id="saldo-valor" style="font-size:22px;font-weight:700;letter-spacing:-1px;">—</div>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:14px;">
+      <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">Saldo acumulado (desde jun/2026)</div>
+      <div id="saldo-acumulado" style="font-size:28px;font-weight:700;letter-spacing:-1px;">—</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Horas disponíveis para compensação</div>
+    </div>
+  </div>
+
   <div class="month-row">
     <select id="hist-emp-select" onchange="onHistEmpChange()" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 14px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;outline:none;flex:1;display:none;"></select>
     <select id="hist-month" onchange="renderHistorico()"></select>
@@ -421,6 +446,45 @@ async function renderHistorico(){
   tbody.innerHTML='<tr><td colspan="8" class="loading">Carregando...</td></tr>';
   const records=await getMonthRecords(empId,month);
   const dates=Object.keys(records).sort();
+
+  // calcular saldo do mês e acumulado (só para funcionários, não gestão)
+  if(!IS_GESTAO){
+    let totalTrab=0, totalPrev=0;
+    dates.forEach(date=>{
+      const rec=records[date];
+      totalTrab+=calcHoras(rec);
+      totalPrev+=jornadaDia(date);
+    });
+    const saldoMin=Math.round((totalTrab-totalPrev)*60);
+    const sc=saldoMin>=0?'var(--green)':'var(--red)';
+    const card=document.getElementById('saldo-card');
+    if(card){
+      card.style.display='block';
+      document.getElementById('saldo-trabalhadas').textContent=minToHHMM(Math.round(totalTrab*60));
+      document.getElementById('saldo-previstas').textContent=minToHHMM(Math.round(totalPrev*60));
+      const saldoEl=document.getElementById('saldo-valor');
+      saldoEl.textContent=(saldoMin>=0?'+':'')+minToHHMM(Math.abs(saldoMin));
+      saldoEl.style.color=sc;
+
+      // calcular saldo acumulado desde jun/2026
+      const allRec=await getAllMonthRecords('');
+      let saldoAcum=0;
+      const empData=allRec[empId]||{};
+      Object.keys(empData).sort().forEach(d=>{
+        const rec=empData[d];
+        if(rec._compensacao){ saldoAcum-=(rec._horas_compensadas||0); return; }
+        const h=calcHoras(rec);
+        saldoAcum+=(h-jornadaDia(d))*60;
+      });
+      const scAcum=saldoAcum>=0?'var(--green)':'var(--red)';
+      const acumEl=document.getElementById('saldo-acumulado');
+      if(acumEl){
+        acumEl.textContent=(saldoAcum>=0?'+':'')+minToHHMM(Math.abs(Math.round(saldoAcum)));
+        acumEl.style.color=scAcum;
+      }
+    }
+  }
+
   if(!dates.length){tbody.innerHTML='<tr><td colspan="8" class="loading">Nenhum registro encontrado</td></tr>';return;}
   tbody.innerHTML=dates.map(date=>{
     const rec=records[date],horas=calcHoras(rec),saldo=horas-jornadaDia(date);
@@ -434,7 +498,8 @@ async function renderHistorico(){
     const sc=saldo>=0?'var(--green)':'var(--red)';
     const saldoMin=Math.round(saldo*60);
     const saldoStr=(saldo>=0?'+':'')+minToHHMM(Math.abs(saldoMin));
-    return '<tr><td>'+formatDate(date)+'</td><td>'+(rec.entrada||'—')+'</td><td>'+(rec.saida_almoco||'—')+'</td><td>'+(rec.retorno_almoco||'—')+'</td><td>'+(rec.saida||'—')+'</td><td>'+(horas>0?minToHHMM(horasMin):'—')+'</td><td style="color:'+sc+';font-weight:600">'+(horas>0?saldoStr:'—')+'</td><td>'+status+'</td></tr>';  }).join('');
+    return '<tr><td>'+formatDate(date)+'</td><td>'+(rec.entrada||'—')+'</td><td>'+(rec.saida_almoco||'—')+'</td><td>'+(rec.retorno_almoco||'—')+'</td><td>'+(rec.saida||'—')+'</td><td>'+(horas>0?minToHHMM(horasMin):'—')+'</td><td style="color:'+sc+';font-weight:600">'+(horas>0?saldoStr:'—')+'</td><td>'+status+'</td></tr>';
+  }).join('');
 }
 
 async function renderDashboard(){
