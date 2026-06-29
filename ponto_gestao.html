@@ -785,7 +785,7 @@ async function _executarSalvamento(empId,data,rec){
 let dashCache = { stats: [], allData: {}, month: '' };
 let graficoInstance = null;
 
-const INICIO_SISTEMA = '2026-06-18'; // data de início do uso do sistema
+const INICIO_SISTEMA = '2026-06-01'; // início da folha de ponto
 
 // Retorna todos os dias úteis (seg-sab) de um mês até hoje
 function diasUteisDoMes(month){
@@ -798,7 +798,6 @@ function diasUteisDoMes(month){
     const dt = new Date(y, m-1, d);
     const w = dt.getDay();
     const ds = `${y}-${pad(m)}-${pad(d)}`;
-    // só dias úteis (seg=1 a sab=6), só até hoje, só a partir do início do sistema, sem feriados
     if(w>=1 && w<=6 && dt <= hoje && dt >= inicio && !feriadosCache.has(ds)){
       dias.push(ds);
     }
