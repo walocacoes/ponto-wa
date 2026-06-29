@@ -466,16 +466,16 @@ async function renderHistorico(){
       saldoEl.textContent=(saldoMin>=0?'+':'')+minToHHMM(Math.abs(saldoMin));
       saldoEl.style.color=sc;
 
-      // calcular saldo acumulado desde jun/2026
+      // saldo acumulado simples — soma todos os registros desde o início
       const allRec=await getAllMonthRecords('');
       let saldoAcum=0;
       const empData=allRec[empId]||{};
       Object.keys(empData).sort().forEach(d=>{
-        const rec=empData[d];
-        if(rec._compensacao){ saldoAcum-=(rec._horas_compensadas||0); return; }
-        const h=calcHoras(rec);
-        saldoAcum+=(h-jornadaDia(d))*60;
+        const r=empData[d];
+        if(!r||!r.entrada)return;
+        saldoAcum+=(calcHoras(r)-jornadaDia(d))*60;
       });
+      saldoAcum=Math.round(saldoAcum);
       const scAcum=saldoAcum>=0?'var(--green)':'var(--red)';
       const acumEl=document.getElementById('saldo-acumulado');
       if(acumEl){
