@@ -449,9 +449,13 @@ async function renderHistorico(){
 
   // calcular saldo do mês e acumulado (só para funcionários, não gestão)
   if(!IS_GESTAO){
+    const ontem=new Date();ontem.setDate(ontem.getDate()-1);ontem.setHours(23,59,59);
     let totalTrab=0, totalPrev=0;
     dates.forEach(date=>{
+      const dt=new Date(date+'T12:00:00');
+      if(dt>ontem)return; // ignora hoje e dias futuros
       const rec=records[date];
+      if(!rec||!rec.entrada||!rec.saida)return; // ignora dias incompletos
       totalTrab+=calcHoras(rec);
       totalPrev+=jornadaDia(date);
     });
