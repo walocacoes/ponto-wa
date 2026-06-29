@@ -795,7 +795,7 @@ function diasUteisDoMes(month){
   const dias = [];
   const ultimo = new Date(y, m, 0).getDate();
   for(let d=1; d<=ultimo; d++){
-    const dt = new Date(y, m-1, d);
+    const dt = new Date(y, m-1, d, 12); // meio-dia para evitar problemas de fuso
     const w = dt.getDay();
     const ds = `${y}-${pad(m)}-${pad(d)}`;
     if(w>=1 && w<=6 && dt <= hoje && dt >= inicio && !feriadosCache.has(ds)){
