@@ -598,17 +598,18 @@ window.renderHistorico=async function(){
   const allData=await getAllMonthRecords(month);
   histCache=[];
 
+  const todosUteis = diasUteisDoMes(month);
+
   FUNCIONARIOS.forEach(f=>{
     if(empFilter&&f.id!==empFilter)return;
     const empData=allData[f.id]||{};
-    Object.keys(empData).sort().forEach(date=>{
-      const rec=empData[date];
+
+    todosUteis.forEach(date=>{
+      const rec=empData[date]||{};
       const horas=calcHoras(rec),saldo=horas-jornadaDia(date);
       const isSab=new Date(date+'T12:00:00').getDay()===6;
       const isDom=new Date(date+'T12:00:00').getDay()===0;
-      const complete=(isSab||isDom)
-        ? rec.entrada&&rec.saida
-        : rec.entrada&&rec.saida_almoco&&rec.retorno_almoco&&rec.saida;
+      const complete=(isSab||isDom)?rec.entrada&&rec.saida:rec.entrada&&rec.saida_almoco&&rec.retorno_almoco&&rec.saida;
       let statusStr='';
       if(!rec.entrada)statusStr='Falta';
       else if(!complete)statusStr='Incompleto';
@@ -751,6 +752,23 @@ async function _executarSalvamento(empId,data,rec){
 let dashCache = { stats: [], allData: {}, month: '' };
 let graficoInstance = null;
 
+// Retorna todos os dias úteis (seg-sab) de um mês até hoje
+function diasUteisDoMes(month){
+  const [y,m] = month.split('-').map(Number);
+  const hoje = new Date();
+  const dias = [];
+  const ultimo = new Date(y, m, 0).getDate();
+  for(let d=1; d<=ultimo; d++){
+    const dt = new Date(y, m-1, d);
+    const w = dt.getDay();
+    // só dias úteis (seg=1 a sab=6), só até hoje
+    if(w>=1 && w<=6 && dt <= hoje){
+      dias.push(`${y}-${pad(m)}-${pad(d)}`);
+    }
+  }
+  return dias;
+}
+
 window.renderDashboard=async function(){
   const month=document.getElementById('dash-month').value;
   document.getElementById('dash-month-label').textContent=monthLabel(month);
@@ -758,17 +776,41 @@ window.renderDashboard=async function(){
   const allData=await getAllMonthRecords(month);
   dashCache.allData=allData; dashCache.month=month;
 
+  const todosUteis = diasUteisDoMes(month);
+
   let tF=0,tE=0,tN=0,tR=0;
   const stats=FUNCIONARIOS.map(f=>{
     const ed=allData[f.id]||{};
-    const dias=Object.keys(ed).filter(d=>{
-      const w=new Date(d+'T12:00:00').getDay();
-      return w!==0 || ed[d].entrada; // inclui domingo se tiver registro
-    });
     let hT=0,fa=0,sM=0;
-    dias.forEach(d=>{tR++;const rec=ed[d];if(!rec.entrada){fa++;return;}const h=calcHoras(rec);hT+=h;sM+=(h-jornadaDia(d))*60;});
-    tF+=fa;if(sM>0)tE+=sM;else tN+=Math.abs(sM);
-    return{f,hT,fa,sM,dias:dias.length};
+
+    todosUteis.forEach(d=>{
+      const rec=ed[d];
+      // dia sem nenhum registro = falta
+      if(!rec||!rec.entrada){
+        fa++;
+        sM-=jornadaDia(d)*60;
+        return;
+      }
+      tR++;
+      const h=calcHoras(rec);
+      hT+=h;
+      sM+=(h-jornadaDia(d))*60;
+    });
+
+    // domingos com registro extra
+    Object.keys(ed).forEach(d=>{
+      const w=new Date(d+'T12:00:00').getDay();
+      if(w===0&&ed[d].entrada){
+        tR++;
+        const h=calcHoras(ed[d]);
+        hT+=h;
+        sM+=h*60; // domingo = tudo extra
+      }
+    });
+
+    tF+=fa;
+    if(sM>0)tE+=sM; else tN+=Math.abs(sM);
+    return{f,hT,fa,sM,dias:todosUteis.length};
   });
   dashCache.stats=stats;
 
@@ -782,11 +824,11 @@ window.renderDashboard=async function(){
   // Banco de horas com barra de progresso
   document.getElementById('emp-list').innerHTML=stats.map(({f,hT,fa,sM})=>{
     const sl=(sM>=0?'+':'')+minToHHMM(Math.abs(sM)),sc=sM>=0?'#22C55E':'#E8302F';
-    const pct=Math.min(100,Math.round((hT/(22*8))*100)); // ~22 dias úteis
+    const pct=Math.min(100,Math.round((hT/(22*8))*100));
     return `<div class="emp-row" style="flex-direction:column;align-items:stretch;gap:8px;">
       <div style="display:flex;align-items:center;gap:12px;">
         <div class="emp-av">${initials(f.nome)}</div>
-        <div style="flex:1"><div class="emp-name">${f.nome}</div><div class="emp-sub">${fa===0?'✓ Sem faltas':fa+' falta'+(fa>1?'s':'')}</div></div>
+        <div style="flex:1"><div class="emp-name">${f.nome}</div><div class="emp-sub" style="color:${fa>0?'#E8302F':'#A0A0A0'}">${fa===0?'✓ Sem faltas':'⚠️ '+fa+' falta'+(fa>1?'s':'')}</div></div>
         <div class="emp-right">
           <div class="emp-hours">${minToHHMM(Math.round(hT*60))}</div>
           <div style="font-size:11px;color:${sc};margin-top:2px;font-weight:600;">${sM!==0?'saldo '+sl:'saldo 00h00'}</div>
