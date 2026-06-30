@@ -981,7 +981,12 @@ function renderGrafico(stats){
   if(graficoInstance){graficoInstance.destroy();graficoInstance=null;}
   const labels=stats.map(s=>s.f.nome.split(' ')[0]);
   const horasTrab=stats.map(s=>Math.round(s.hT*10)/10);
-  const horasPrev=stats.map(s=>s.dias*(s.dias>0?8:0)); // aproximado
+  const month=document.getElementById('dash-month').value;
+  const todosUteis=diasUteisDoMes(month);
+  const ontemGraf=new Date();ontemGraf.setDate(ontemGraf.getDate()-1);ontemGraf.setHours(23,59,59);
+  const diasAteOntem=todosUteis.filter(d=>new Date(d+'T12:00:00')<=ontemGraf);
+  const totalPrevisto=diasAteOntem.reduce((acc,d)=>acc+jornadaDia(d),0);
+  const horasPrev=stats.map(()=>totalPrevisto);
 
   graficoInstance=new Chart(ctx,{
     type:'bar',
