@@ -1063,60 +1063,69 @@ window.excluirFeriado = async function(data){
 
 
 function buildRows(empId, allData, month){
-  const rows=[];
   const funcs=empId?FUNCIONARIOS.filter(f=>f.id===empId):FUNCIONARIOS;
   const todosUteis=diasUteisDoMes(month);
-  const feriadosDoMes=[...feriadosCache].filter(d=>d.startsWith(month)).sort();
+  const feriadosMap={};
+  [...feriadosCache].filter(d=>d.startsWith(month)).forEach(d=>{
+    // buscar descrição do feriado
+    feriadosMap[d]='Feriado';
+  });
+
+  const resultado=[]; // {f, rows, resumo}
 
   funcs.forEach(f=>{
     const ed=allData[f.id]||{};
+    const linhas=[];
+    let totalTrab=0,totalPrev=0,totalFaltas=0,totalEditados=0;
 
-    // dias úteis
-    todosUteis.forEach(date=>{
+    // combinar dias úteis + feriados em ordem cronológica
+    const todasDatas=new Set([...todosUteis,...Object.keys(feriadosMap)]);
+    const datasOrdenadas=[...todasDatas].sort();
+
+    datasOrdenadas.forEach(date=>{
+      if(feriadosMap[date]!==undefined && !todosUteis.includes(date)){
+        // é feriado puro (não está nos dias úteis pois já foi excluído)
+        linhas.push([date, formatDate(date),
+          f.nome.split(' ')[0]+' '+f.nome.split(' ').slice(-1)[0],
+          '—','—','—','—','—','—','Feriado','']);
+        return;
+      }
       const rec=ed[date]||{};
       const horas=calcHoras(rec),saldo=horas-jornadaDia(date);
       let status='OK';
-      if(!rec.entrada)status='Falta';
+      if(!rec.entrada){status='Falta';totalFaltas++;}
       else if(!rec.saida)status='Incompleto';
-      else if(rec._editado)status='Editado';
-      rows.push([
-        formatDate(date),
+      else if(rec._editado){status='Editado';totalEditados++;}
+      if(rec.entrada&&rec.saida){totalTrab+=horas;totalPrev+=jornadaDia(date);}
+      linhas.push([date, formatDate(date),
         f.nome.split(' ')[0]+' '+f.nome.split(' ').slice(-1)[0],
         rec.entrada||'—', rec.saida_almoco||'—', rec.retorno_almoco||'—', rec.saida||'—',
         horas>0?minToHHMM(Math.round(horas*60)):'—',
         horas>0?(saldo>=0?'+':'')+minToHHMM(Math.abs(Math.round(saldo*60))):'—',
-        status,
-        rec._motivo||''
+        status, rec._motivo||''
       ]);
     });
 
-    // feriados
-    feriadosDoMes.forEach(date=>{
-      rows.push([
-        formatDate(date),
-        f.nome.split(' ')[0]+' '+f.nome.split(' ').slice(-1)[0],
-        '—','—','—','—','—','—','Feriado',''
-      ]);
+    const saldoTotal=totalTrab-totalPrev;
+    resultado.push({
+      f, linhas,
+      resumo:{totalTrab,totalPrev,saldoTotal,totalFaltas,totalEditados}
     });
   });
 
-  // ordenar por data e funcionário
-  rows.sort((a,b)=>a[0].localeCompare(b[0])||a[1].localeCompare(b[1]));
-  return rows;
+  return resultado;
 }
 
-function gerarPDF(rows, titulo, subtitulo){
-  if(!rows.length){showToast('Nenhum dado para exportar','error');return;}
+function gerarPDF(resultado, titulo, subtitulo){
+  if(!resultado.length||!resultado[0].linhas.length){showToast('Nenhum dado para exportar','error');return;}
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
 
-  // cabeçalho branco com barra vermelha lateral
+  // cabeçalho
   doc.setFillColor(255,255,255);
   doc.rect(0,0,297,28,'F');
   doc.setFillColor(196,30,32);
   doc.rect(0,0,6,28,'F');
-
-  // logo texto
   doc.setTextColor(30,30,30);
   doc.setFont('helvetica','bold');
   doc.setFontSize(16);
@@ -1124,13 +1133,9 @@ function gerarPDF(rows, titulo, subtitulo){
   doc.setTextColor(196,30,32);
   doc.setFontSize(9);
   doc.text('LOCAÇÕES & EVENTOS',12,19);
-
-  // linha separadora
   doc.setDrawColor(196,30,32);
   doc.setLineWidth(0.5);
   doc.line(0,28,297,28);
-
-  // título à direita
   doc.setTextColor(80,80,80);
   doc.setFont('helvetica','normal');
   doc.setFontSize(10);
@@ -1140,35 +1145,70 @@ function gerarPDF(rows, titulo, subtitulo){
   doc.setFontSize(7);
   doc.text('Gerado em '+new Date().toLocaleString('pt-BR'),297-10,24,{align:'right'});
 
-  // tabela — fundo branco, linhas cinza claro
-  doc.autoTable({
-    startY:32,
-    head:[['Data','Funcionário','Entrada','S.Almoço','R.Almoço','Saída','H.Trab.','Saldo','Status','Motivo']],
-    body:rows,
-    styles:{fontSize:8,cellPadding:2.5,textColor:[30,30,30],fillColor:[255,255,255],lineColor:[220,220,220],lineWidth:0.1},
-    headStyles:{fillColor:[196,30,32],textColor:[255,255,255],fontStyle:'bold',fontSize:8},
-    alternateRowStyles:{fillColor:[248,248,248]},
-    columnStyles:{
-      0:{cellWidth:28},1:{cellWidth:32},2:{cellWidth:16},3:{cellWidth:18},
-      4:{cellWidth:18},5:{cellWidth:16},6:{cellWidth:16},7:{cellWidth:16},
-      8:{cellWidth:20},9:{cellWidth:38}
-    },
-    didParseCell:function(data){
-      if(data.section==='body'&&data.column.index===8){
-        if(data.cell.raw==='Falta'){data.cell.styles.textColor=[196,30,32];data.cell.styles.fontStyle='bold';}
-        else if(data.cell.raw==='OK'){data.cell.styles.textColor=[22,120,60];data.cell.styles.fontStyle='bold';}
-        else if(data.cell.raw==='Editado'){data.cell.styles.textColor=[180,90,0];}
-        else if(data.cell.raw==='Feriado'){data.cell.styles.textColor=[30,80,180];}
-        else if(data.cell.raw==='Incompleto'){data.cell.styles.textColor=[150,100,0];}
-      }
-      if(data.section==='body'&&data.column.index===7){
-        if(data.cell.raw&&data.cell.raw.startsWith('+'))data.cell.styles.textColor=[22,120,60];
-        else if(data.cell.raw&&data.cell.raw.startsWith('-'))data.cell.styles.textColor=[196,30,32];
-      }
-    },
+  let startY=32;
+
+  resultado.forEach(({f,linhas,resumo},idx)=>{
+    if(idx>0){doc.addPage();startY=20;}
+
+    // nome do funcionário como subtítulo da seção
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(10);
+    doc.setTextColor(196,30,32);
+    doc.text(f.nome,10,startY);
+    startY+=6;
+
+    // tabela de registros
+    const body=linhas.map(l=>l.slice(1)); // remove a data bruta (índice 0)
+    doc.autoTable({
+      startY,
+      head:[['Data','Funcionário','Entrada','S.Almoço','R.Almoço','Saída','H.Trab.','Saldo','Status','Motivo']],
+      body,
+      styles:{fontSize:8,cellPadding:2.5,textColor:[30,30,30],fillColor:[255,255,255],lineColor:[220,220,220],lineWidth:0.1},
+      headStyles:{fillColor:[196,30,32],textColor:[255,255,255],fontStyle:'bold',fontSize:8},
+      alternateRowStyles:{fillColor:[248,248,248]},
+      columnStyles:{
+        0:{cellWidth:28},1:{cellWidth:32},2:{cellWidth:16},3:{cellWidth:18},
+        4:{cellWidth:18},5:{cellWidth:16},6:{cellWidth:16},7:{cellWidth:16},
+        8:{cellWidth:20},9:{cellWidth:38}
+      },
+      didParseCell:function(data){
+        if(data.section==='body'&&data.column.index===8){
+          if(data.cell.raw==='Falta'){data.cell.styles.textColor=[196,30,32];data.cell.styles.fontStyle='bold';}
+          else if(data.cell.raw==='OK'){data.cell.styles.textColor=[22,120,60];data.cell.styles.fontStyle='bold';}
+          else if(data.cell.raw==='Editado'){data.cell.styles.textColor=[180,90,0];}
+          else if(data.cell.raw==='Feriado'){data.cell.styles.textColor=[30,80,180];data.cell.styles.fillColor=[235,242,255];}
+          else if(data.cell.raw==='Incompleto'){data.cell.styles.textColor=[150,100,0];}
+        }
+        if(data.section==='body'&&data.column.index===7){
+          if(data.cell.raw&&data.cell.raw.startsWith('+'))data.cell.styles.textColor=[22,120,60];
+          else if(data.cell.raw&&data.cell.raw.startsWith('-'))data.cell.styles.textColor=[196,30,32];
+        }
+      },
+    });
+
+    // bloco de resumo do funcionário
+    const finalY=doc.lastAutoTable.finalY+4;
+    doc.setFillColor(245,245,245);
+    doc.rect(10,finalY,277,22,'F');
+    doc.setDrawColor(220,220,220);
+    doc.rect(10,finalY,277,22,'S');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8);
+    doc.setTextColor(80,80,80);
+    doc.text('RESUMO DO MÊS',14,finalY+6);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8);
+    const sc=resumo.saldoTotal>=0?[22,120,60]:[196,30,32];
+    doc.text('H. Trabalhadas: '+minToHHMM(Math.round(resumo.totalTrab*60)), 14, finalY+13);
+    doc.text('H. Previstas: '+minToHHMM(Math.round(resumo.totalPrev*60)), 70, finalY+13);
+    doc.setTextColor(...sc);
+    doc.text('Saldo do Mês: '+(resumo.saldoTotal>=0?'+':'')+minToHHMM(Math.abs(Math.round(resumo.saldoTotal*60))), 126, finalY+13);
+    doc.setTextColor(80,80,80);
+    doc.text('Faltas: '+resumo.totalFaltas, 190, finalY+13);
+    doc.text('Registros editados: '+resumo.totalEditados, 220, finalY+13);
   });
 
-  // rodapé
+  // rodapé em todas as páginas
   const pageCount=doc.internal.getNumberOfPages();
   for(let i=1;i<=pageCount;i++){
     doc.setPage(i);
@@ -1184,8 +1224,8 @@ function gerarPDF(rows, titulo, subtitulo){
 
 window.exportarPDFTodos=function(){
   const month=document.getElementById('dash-month').value;
-  const rows=buildRows('',dashCache.allData,month);
-  gerarPDF(rows,'Ponto '+monthLabel(month)+' — Todos','WA Locações & Eventos');
+  const resultado=buildRows('',dashCache.allData,month);
+  gerarPDF(resultado,'Ponto '+monthLabel(month)+' — Todos','WA Locações & Eventos');
 };
 
 window.exportarPDFFuncionario=function(){
@@ -1193,22 +1233,17 @@ window.exportarPDFFuncionario=function(){
   const month=document.getElementById('dash-month').value;
   if(!empId){showToast('Selecione um funcionário','error');return;}
   const f=FUNCIONARIOS.find(f=>f.id===empId);
-  const rows=buildRows(empId,dashCache.allData,month);
-  gerarPDF(rows,'Ponto '+monthLabel(month)+' — '+f.nome.split(' ')[0],f.nome);
+  const resultado=buildRows(empId,dashCache.allData,month);
+  gerarPDF(resultado,'Ponto '+monthLabel(month)+' — '+f.nome.split(' ')[0],f.nome);
 };
 
 window.exportarPDFHistorico=function(){
   if(!histCache.length){showToast('Nenhum dado para exportar','error');return;}
   const month=document.getElementById('hist-month').value;
-  const rows=histCache.map(({date,f,rec,horas,saldo,statusStr})=>[
-    formatDate(date),
-    f.nome.split(' ')[0]+' '+f.nome.split(' ').slice(-1)[0],
-    rec.entrada||'—',rec.saida_almoco||'—',rec.retorno_almoco||'—',rec.saida||'—',
-    horas>0?minToHHMM(Math.round(horas*60)):'—',
-    horas>0?(saldo>=0?'+':'')+minToHHMM(Math.abs(Math.round(saldo*60))):'—',
-    statusStr, rec._motivo||''
-  ]);
-  gerarPDF(rows,'Histórico '+monthLabel(month),'WA Locações & Eventos');
+  const empFilter=document.getElementById('hist-emp-select').value;
+  const resultado=buildRows(empFilter||'',dashCache.allData||{},month);
+  if(!resultado.length){showToast('Nenhum dado para exportar','error');return;}
+  gerarPDF(resultado,'Histórico '+monthLabel(month),'WA Locações & Eventos');
 };
 
 // ── SENHA ──
