@@ -1222,26 +1222,31 @@ function gerarPDF(resultado, titulo, subtitulo){
   showToast('PDF gerado!','success');
 }
 
-window.exportarPDFTodos=function(){
+window.exportarPDFTodos=async function(){
   const month=document.getElementById('dash-month').value;
-  const resultado=buildRows('',dashCache.allData,month);
+  showToast('Gerando PDF...','success');
+  const allData=await getAllMonthRecords(month);
+  const resultado=buildRows('',allData,month);
   gerarPDF(resultado,'Ponto '+monthLabel(month)+' — Todos','WA Locações & Eventos');
 };
 
-window.exportarPDFFuncionario=function(){
+window.exportarPDFFuncionario=async function(){
   const empId=document.getElementById('dash-exp-emp').value;
   const month=document.getElementById('dash-month').value;
   if(!empId){showToast('Selecione um funcionário','error');return;}
   const f=FUNCIONARIOS.find(f=>f.id===empId);
-  const resultado=buildRows(empId,dashCache.allData,month);
+  showToast('Gerando PDF...','success');
+  const allData=await getAllMonthRecords(month);
+  const resultado=buildRows(empId,allData,month);
   gerarPDF(resultado,'Ponto '+monthLabel(month)+' — '+f.nome.split(' ')[0],f.nome);
 };
 
-window.exportarPDFHistorico=function(){
-  if(!histCache.length){showToast('Nenhum dado para exportar','error');return;}
+window.exportarPDFHistorico=async function(){
   const month=document.getElementById('hist-month').value;
   const empFilter=document.getElementById('hist-emp-select').value;
-  const resultado=buildRows(empFilter||'',dashCache.allData||{},month);
+  showToast('Gerando PDF...','success');
+  const allData=await getAllMonthRecords(month);
+  const resultado=buildRows(empFilter||'',allData,month);
   if(!resultado.length){showToast('Nenhum dado para exportar','error');return;}
   gerarPDF(resultado,'Histórico '+monthLabel(month),'WA Locações & Eventos');
 };
