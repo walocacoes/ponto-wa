@@ -277,7 +277,7 @@ function timeToMin(t){if(!t)return null;const[h,m]=t.split(':').map(Number);retu
 function minToHHMM(min){const m=Math.round(Math.abs(min));const h=Math.floor(m/60),mm=m%60;return(min<0?'-':'')+pad(h)+'h'+pad(mm);}
 function calcHoras(rec){const e=timeToMin(rec.entrada),s=timeToMin(rec.saida),sa=timeToMin(rec.saida_almoco),ra=timeToMin(rec.retorno_almoco);if(!e||!s)return 0;let t=s-e;if(sa&&ra)t-=(ra-sa);return Math.round(t)/60;}
 function isWeekend(d){const[y,m,dd]=d.split('-').map(Number);const w=new Date(y,m-1,dd).getDay();return w===0;}
-function jornadaDia(dateStr){const[y,m,d]=dateStr.split('-').map(Number);const w=new Date(y,m-1,d).getDay();return w===6?4:8;}
+function jornadaDia(dateStr){const[y,m,d]=dateStr.split('-').map(Number);const w=new Date(y,m-1,d).getDay();return(w===0||w===6)?0:5;}
 
 setInterval(()=>{const n=new Date();document.getElementById('clock').textContent=pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());},1000);
 
@@ -521,9 +521,8 @@ async function renderHistorico(){
       return '<tr style="background:#1a2535 !important;"><td>'+formatDate(date)+'</td><td colspan="5" style="color:#60a5fa;font-style:italic;">🎉 Feriado — '+desc+'</td><td>—</td><td><span class="badge" style="background:#1a2535;color:#60a5fa;border:1px solid #60a5fa44;">Feriado</span></td></tr>';
     }
     const horas=calcHoras(rec),saldo=horas-jornadaDia(date);
-    const isSab=new Date(date+'T12:00:00').getDay()===6;
-    const isDom=new Date(date+'T12:00:00').getDay()===0;
-    const complete=(isSab||isDom)?rec.entrada&&rec.saida:rec.entrada&&rec.saida_almoco&&rec.retorno_almoco&&rec.saida;
+    // Eveline: sempre só entrada e saída
+    const complete=rec.entrada&&rec.saida;
     let status='';
     if(!rec.entrada)status='<span class="badge badge-red">Falta</span>';
     else if(!complete)status='<span class="badge badge-yellow">Incompleto</span>';
