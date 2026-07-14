@@ -633,14 +633,13 @@ window.renderHistorico=async function(){
   const allData=await getAllMonthRecords(month);
   histCache=[];
 
-  const todosUteis = diasUteisDoMes(month);
-
   // também incluir feriados do mês no histórico
   const feriadosDoMes = [...feriadosCache].filter(d => d.startsWith(month));
 
   FUNCIONARIOS.forEach(f=>{
     if(empFilter&&f.id!==empFilter)return;
     const empData=allData[f.id]||{};
+    const todosUteis=diasUteisDoMes(month, f.id);
 
     // dias úteis normais
     todosUteis.forEach(date=>{
@@ -1096,7 +1095,6 @@ window.excluirFeriado = async function(data){
 
 function buildRows(empId, allData, month){
   const funcs=empId?FUNCIONARIOS.filter(f=>f.id===empId):FUNCIONARIOS;
-  const todosUteis=diasUteisDoMes(month);
   const feriadosMap={};
   [...feriadosCache].filter(d=>d.startsWith(month)).forEach(d=>{
     // buscar descrição do feriado
@@ -1109,6 +1107,7 @@ function buildRows(empId, allData, month){
     const ed=allData[f.id]||{};
     const linhas=[];
     let totalTrab=0,totalPrev=0,totalFaltas=0,totalEditados=0;
+    const todosUteis=diasUteisDoMes(month, f.id);
 
     // combinar dias úteis + feriados em ordem cronológica
     const todasDatas=new Set([...todosUteis,...Object.keys(feriadosMap)]);
