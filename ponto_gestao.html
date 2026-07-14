@@ -482,12 +482,16 @@ window.loadTodayRecord=async function(){
   const empId=document.getElementById('emp-select').value;
 
   // sábado: esconde botões de almoço e ajusta sequência
+  const empId=document.getElementById('emp-select').value;
   const isSab=new Date().getDay()===6;
+  // Eveline só usa entrada e saída (sem almoço, sem sábado)
+  const isMeioPeriodo = empId === 'F06';
+  const esconderAlmoco = isSab || isMeioPeriodo;
   ['btn-saida_almoco','btn-retorno_almoco'].forEach(id=>{
     const el=document.getElementById(id);
-    if(el){el.style.visibility=isSab?'hidden':'visible';el.style.pointerEvents=isSab?'none':'auto';}
+    if(el){el.style.visibility=esconderAlmoco?'hidden':'visible';el.style.pointerEvents=esconderAlmoco?'none':'auto';}
   });
-  window.ORDEM_HOJE=isSab?['entrada','saida']:['entrada','saida_almoco','retorno_almoco','saida'];
+  window.ORDEM_HOJE=esconderAlmoco?['entrada','saida']:['entrada','saida_almoco','retorno_almoco','saida'];
 
   if(!empId){resetPunchBtns();return;}
   const rec=await getRecord(empId,todayStr());
