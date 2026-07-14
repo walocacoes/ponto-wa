@@ -876,19 +876,28 @@ let dashCache = { stats: [], allData: {}, month: '' };
 let graficoInstance = null;
 
 const INICIO_SISTEMA = '2026-06-01'; // início da folha de ponto
+// Data de início individual por funcionário (para não gerar faltas antes da contratação)
+const INICIO_FUNC = {
+  'F05': '2026-07-13', // Marilda
+  'F06': '2026-07-13', // Eveline
+};
 
 // Retorna todos os dias úteis (seg-sab) de um mês até hoje
-function diasUteisDoMes(month){
+function diasUteisDoMes(month, empId){
   const [y,m] = month.split('-').map(Number);
   const hoje = new Date();
-  const inicio = new Date(INICIO_SISTEMA+'T12:00:00');
+  const inicioStr = (empId && INICIO_FUNC && INICIO_FUNC[empId]) || INICIO_SISTEMA;
+  const inicio = new Date(inicioStr+'T12:00:00');
+  // Eveline não trabalha sábado
+  const semSabado = empId && typeof SEM_SABADO !== 'undefined' && SEM_SABADO.has(empId);
   const dias = [];
   const ultimo = new Date(y, m, 0).getDate();
   for(let d=1; d<=ultimo; d++){
-    const dt = new Date(y, m-1, d, 12); // meio-dia para evitar problemas de fuso
+    const dt = new Date(y, m-1, d, 12);
     const w = dt.getDay();
     const ds = `${y}-${pad(m)}-${pad(d)}`;
     if(w>=1 && w<=6 && dt <= hoje && dt >= inicio && !feriadosCache.has(ds)){
+      if(semSabado && w===6) return; // pula sábado para quem não trabalha
       dias.push(ds);
     }
   }
@@ -902,7 +911,6 @@ window.renderDashboard=async function(){
   const allData=await getAllMonthRecords(month);
   dashCache.allData=allData; dashCache.month=month;
 
-  const todosUteis = diasUteisDoMes(month);
   const ontem = new Date(); ontem.setDate(ontem.getDate()-1); ontem.setHours(23,59,59);
 
   let tF=0,tE=0,tN=0,tR=0;
