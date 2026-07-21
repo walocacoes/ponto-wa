@@ -896,7 +896,7 @@ function diasUteisDoMes(month, empId){
     const w = dt.getDay();
     const ds = `${y}-${pad(m)}-${pad(d)}`;
     if(w>=1 && w<=6 && dt <= hoje && dt >= inicio && !feriadosCache.has(ds)){
-      if(semSabado && w===6) return; // pula sábado para quem não trabalha
+      if(semSabado && w===6) continue; // pula sábado para quem não trabalha
       dias.push(ds);
     }
   }
