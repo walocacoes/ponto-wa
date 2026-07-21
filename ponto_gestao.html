@@ -916,6 +916,7 @@ window.renderDashboard=async function(){
   const stats=FUNCIONARIOS.map(f=>{
     const ed=allData[f.id]||{};
     let hT=0,fa=0,sM=0;
+    const todosUteis=diasUteisDoMes(month, f.id);
 
     todosUteis.forEach(d=>{
       const dt=new Date(d+'T12:00:00');
