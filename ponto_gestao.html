@@ -686,10 +686,11 @@ window.renderHistorico=async function(){
     const incs=verificarInconsistencias(rec);
     const alertIcon=incs.length?'<span title="'+incs.join('; ')+'" style="cursor:help;">⚠️</span>':'';
     const isEdited=rec._editado?'edited-row':'';
+    const localInfo=rec._local_entrada?`<div style="font-size:10px;color:#60a5fa;margin-top:2px;">📍 ${rec._local_entrada}</div>`:'';
     return `<tr class="${isEdited}">
       <td>${formatDate(date)}</td>
       <td>${f.nome.split(' ')[0]}</td>
-      <td>${rec.entrada||'—'}</td>
+      <td>${rec.entrada||'—'}${localInfo}</td>
       <td>${rec.saida_almoco||'—'}</td>
       <td>${rec.retorno_almoco||'—'}</td>
       <td>${rec.saida||'—'}</td>
