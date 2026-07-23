@@ -359,7 +359,7 @@ window.loadTodayRecord=async function(){
 function resetPunchBtns(){ORDER.forEach(k=>{document.getElementById('time-'+k).textContent='';document.getElementById('btn-'+k).classList.remove('done');});document.getElementById('status-row').innerHTML='';}
 function updateStatusRow(rec){
   const chips=[];
-  if(rec.entrada)chips.push('<span class="chip chip-green">Entrou '+rec.entrada+'</span>');
+  if(rec.entrada){const loc=rec._local_entrada?' · '+rec._local_entrada:'';chips.push('<span class="chip chip-green">Entrou '+rec.entrada+loc+'</span>');}
   if(rec.saida_almoco)chips.push('<span class="chip chip-yellow">Almoço '+rec.saida_almoco+'</span>');
   if(rec.retorno_almoco)chips.push('<span class="chip chip-blue">Retornou '+rec.retorno_almoco+'</span>');
   if(rec.saida){const h=calcHoras(rec);chips.push('<span class="chip chip-'+(h>=jornadaDia(todayStr())?'green':'red')+'">Saiu '+rec.saida+' · '+minToHHMM(Math.round(h*60))+'</span>');}
@@ -379,9 +379,10 @@ window.openModal=function(type){
 };
 window.closeModal=function(){clearInterval(window._mi);document.getElementById('modal-bg').classList.remove('open');pendingType=null;};
 // ── geolocalização ──
-const LOJA_LAT = -7.1993882;
-const LOJA_LNG = -48.2006401;
-const RAIO_M   = 100;
+const LOCAIS = [
+  { nome: 'Loja WA',    lat: -7.1993882,  lng: -48.2006401, raio: 100 },
+  { nome: 'Casa WA',    lat: -7.1982159,  lng: -48.2322757, raio: 100 },
+];
 
 function distancia(lat1,lng1,lat2,lng2){
   const R=6371000,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
@@ -394,6 +395,14 @@ function getPosicao(){
     if(!navigator.geolocation){rej(new Error('GPS não disponível neste dispositivo'));return;}
     navigator.geolocation.getCurrentPosition(res,rej,{enableHighAccuracy:true,timeout:10000});
   });
+}
+
+function verificarLocal(lat,lng){
+  for(const local of LOCAIS){
+    const dist=distancia(lat,lng,local.lat,local.lng);
+    if(dist<=local.raio) return local;
+  }
+  return null;
 }
 
 window.confirmPunch=async function(){
@@ -422,6 +431,8 @@ window.confirmPunch=async function(){
   for(let i=0;i<ordemHoje.indexOf(pt);i++){if(!rec[ordemHoje[i]]){showToast('Registre primeiro: '+MARCACOES[ordemHoje[i]].label,'error');return;}}
   if(rec[pt]){showToast('Esse horário já foi registrado','error');return;}
   rec[pt]=time;
+  // salva o local onde o ponto foi batido
+  if(window._localAtual) rec['_local_'+pt]=window._localAtual;
   // atualiza visual imediatamente
   const btnEl=document.getElementById('btn-'+pt);
   const timeEl=document.getElementById('time-'+pt);
