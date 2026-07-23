@@ -644,10 +644,11 @@ window.renderHistorico=async function(){
     // dias úteis normais
     todosUteis.forEach(date=>{
       const rec=empData[date]||{};
-      const horas=calcHoras(rec),saldo=horas-jornadaDia(date);
+      const horas=calcHoras(rec),saldo=horas-jornadaDia(date,f.id);
       const isSab=new Date(date+'T12:00:00').getDay()===6;
       const isDom=new Date(date+'T12:00:00').getDay()===0;
-      const complete=(isSab||isDom)?rec.entrada&&rec.saida:rec.entrada&&rec.saida_almoco&&rec.retorno_almoco&&rec.saida;
+      const isMeioPeriodoFunc = f.id==='F06'; // Eveline: só entrada e saída
+      const complete=(isSab||isDom||isMeioPeriodoFunc)?rec.entrada&&rec.saida:rec.entrada&&rec.saida_almoco&&rec.retorno_almoco&&rec.saida;
       let statusStr='';
       if(rec._compensacao)statusStr='Compensação';
       else if(!rec.entrada)statusStr='Falta';
@@ -1124,12 +1125,14 @@ function buildRows(empId, allData, month){
         return;
       }
       const rec=ed[date]||{};
-      const horas=calcHoras(rec),saldo=horas-jornadaDia(date);
+      const horas=calcHoras(rec),saldo=horas-jornadaDia(date,f.id);
+      const isMeioPeriodoFunc=f.id==='F06';
+      const isSabBuild=new Date(date+'T12:00:00').getDay()===6;
       let status='OK';
       if(!rec.entrada){status='Falta';totalFaltas++;}
-      else if(!rec.saida)status='Incompleto';
+      else if(isMeioPeriodoFunc||isSabBuild?!rec.saida:!rec.saida_almoco||!rec.retorno_almoco||!rec.saida)status='Incompleto';
       else if(rec._editado){status='Editado';totalEditados++;}
-      if(rec.entrada&&rec.saida){totalTrab+=horas;totalPrev+=jornadaDia(date);}
+      if(rec.entrada&&rec.saida){totalTrab+=horas;totalPrev+=jornadaDia(date,f.id);}
       linhas.push([date, formatDate(date),
         f.nome.split(' ')[0]+' '+f.nome.split(' ').slice(-1)[0],
         rec.entrada||'—', rec.saida_almoco||'—', rec.retorno_almoco||'—', rec.saida||'—',
