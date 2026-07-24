@@ -416,11 +416,14 @@ window.confirmPunch=async function(){
   showToast('Verificando localização...','success');
   try{
     const pos=await getPosicao();
-    const dist=distancia(pos.coords.latitude,pos.coords.longitude,LOJA_LAT,LOJA_LNG);
-    if(dist>RAIO_M){
-      showToast('Fora do alcance da loja ('+Math.round(dist)+'m)','error');
+    const localEncontrado=verificarLocal(pos.coords.latitude,pos.coords.longitude);
+    if(!localEncontrado){
+      let menorDist=Infinity,nomeProximo='';
+      for(const l of LOCAIS){const d=distancia(pos.coords.latitude,pos.coords.longitude,l.lat,l.lng);if(d<menorDist){menorDist=d;nomeProximo=l.nome;}}
+      showToast('Fora do alcance ('+Math.round(menorDist)+'m do '+nomeProximo+')','error');
       return;
     }
+    window._localAtual=localEncontrado.nome;
   }catch(e){
     showToast('Não foi possível verificar localização: '+e.message,'error');
     return;
