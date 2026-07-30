@@ -365,6 +365,14 @@ function monthLabel(s){const months=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','
 function timeToMin(t){if(!t)return null;const[h,m]=t.split(':').map(Number);return h*60+m;}
 function minToHHMM(min){const m=Math.round(Math.abs(min));const h=Math.floor(m/60),mm=m%60;return(min<0?'-':'')+pad(h)+'h'+pad(mm);}
 function calcHoras(rec){const e=timeToMin(rec.entrada),s=timeToMin(rec.saida),sa=timeToMin(rec.saida_almoco),ra=timeToMin(rec.retorno_almoco);if(!e||!s)return 0;let t=s-e;if(sa&&ra)t-=(ra-sa);return Math.round(t)/60;}
+
+// Calcula saldo aplicando tolerância CLT de 10 minutos
+// Se a diferença entre horas trabalhadas e previstas for <= 10min, saldo = 0
+function calcSaldoComTolerancia(horas, jornadaH){
+  const diferencaMin = Math.round((horas - jornadaH) * 60);
+  if(Math.abs(diferencaMin) <= 10) return 0; // dentro da tolerância CLT
+  return diferencaMin;
+}
 function isWeekend(d){const[y,m,dd]=d.split('-').map(Number);const w=new Date(y,m-1,dd).getDay();return w===0;}
 function jornadaDia(dateStr,empId){
   const[y,m,d]=dateStr.split('-').map(Number);
@@ -644,7 +652,7 @@ window.renderHistorico=async function(){
     // dias úteis normais
     todosUteis.forEach(date=>{
       const rec=empData[date]||{};
-      const horas=calcHoras(rec),saldo=horas-jornadaDia(date,f.id);
+      const horas=calcHoras(rec),saldoMin=calcSaldoComTolerancia(horas,jornadaDia(date,f.id)),saldo=saldoMin/60;
       const isSab=new Date(date+'T12:00:00').getDay()===6;
       const isDom=new Date(date+'T12:00:00').getDay()===0;
       const isMeioPeriodoFunc = f.id==='F06'; // Eveline: só entrada e saída
@@ -835,7 +843,7 @@ function calcSaldoAcumulado(empId, todosRegistros){
     const rec = ed[ds];
     if(!rec || !rec.entrada) return; // falta ou sem registro: ignora
     const h = calcHoras(rec);
-    saldoMin += (h - jornadaDia(ds)) * 60;
+    saldoMin += calcSaldoComTolerancia(h, jornadaDia(ds));
   });
   return Math.round(saldoMin);
 }
@@ -856,7 +864,7 @@ function alertaCLT(empId, todosRegistros){
     const rec = ed[ds];
     if(!rec||!rec.entrada) return;
     const h = calcHoras(rec);
-    saldoAntigo += (h - jornadaDia(ds)) * 60;
+    saldoAntigo += calcSaldoComTolerancia(h, jornadaDia(ds));
     if(!dataAntigaMais) dataAntigaMais = ds;
   });
 
@@ -1125,7 +1133,7 @@ function buildRows(empId, allData, month){
         return;
       }
       const rec=ed[date]||{};
-      const horas=calcHoras(rec),saldo=horas-jornadaDia(date,f.id);
+      const horas=calcHoras(rec),saldoMin=calcSaldoComTolerancia(horas,jornadaDia(date,f.id)),saldo=saldoMin/60;
       const isMeioPeriodoFunc=f.id==='F06';
       const isSabBuild=new Date(date+'T12:00:00').getDay()===6;
       let status='OK';
