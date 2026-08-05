@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Kitnets · Gestão de Aluguéis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F5F4EF; --card:#FFFFFF; --ink:#22261F; --muted:#7C8074; --line:#E5E3D9;
+  --green:#2E6B46; --green-bg:#E2EFE6; --amber:#A26714; --amber-bg:#F7EDDA;
+  --red:#B23E2C; --red-bg:#F9E6E1; --gray-bg:#EEEDE7;
+  --r:14px; --shadow:0 1px 3px rgba(30,35,25,.07);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+h1,h2,h3,.disp{font-family:"Bricolage Grotesque",sans-serif}
+#app{max-width:540px;margin:0 auto;padding:16px 16px 92px}
+button{font:inherit;border:none;cursor:pointer;border-radius:10px}
+input,select,textarea{font:inherit;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--green);outline-offset:0;border-color:var(--green)}
+label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin:12px 0 5px}
+.hdr{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px}
+.hdr h1{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.hdr .sub{font-size:12.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:14px;margin-bottom:12px}
+.btn{background:var(--green);color:#fff;padding:11px 16px;font-weight:600;font-size:14.5px}
+.btn.sec{background:var(--gray-bg);color:var(--ink)}
+.btn.danger{background:var(--red-bg);color:var(--red)}
+.btn.sm{padding:7px 12px;font-size:13px;border-radius:8px}
+.btn.block{width:100%;display:block}
+.btn:active{transform:scale(.98)}
+.row{display:flex;align-items:center;gap:8px}
+.spread{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.muted{color:var(--muted);font-size:12.5px}
+.tag{display:inline-block;padding:3px 9px;border-radius:99px;font-size:11.5px;font-weight:700;letter-spacing:.02em}
+.t-pago{background:var(--green-bg);color:var(--green)}
+.t-parcial{background:var(--amber-bg);color:var(--amber)}
+.t-aberto{background:var(--gray-bg);color:var(--muted)}
+.t-atrasado{background:var(--red-bg);color:var(--red)}
+.t-vaga{background:var(--gray-bg);color:var(--muted)}
+/* dashboard */
+.mSel{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:14px}
+.mSel button{background:var(--card);border:1px solid var(--line);width:34px;height:34px;border-radius:99px;font-size:16px}
+.mSel .lbl{font-family:"Bricolage Grotesque";font-weight:700;font-size:17px;min-width:150px;text-align:center}
+.kgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 13px;box-shadow:var(--shadow)}
+.kpi .v{font-family:"Bricolage Grotesque";font-size:21px;font-weight:700;letter-spacing:-.02em;margin-top:2px}
+.kpi .l{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.kpi.liq{grid-column:1/-1}
+.kpi.liq .v{font-size:26px}
+/* casa / tiles */
+.casaHd{display:flex;align-items:center;justify-content:space-between;margin:4px 0 8px}
+.casaHd h2{font-size:16.5px;font-weight:700}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 8px;text-align:center;cursor:pointer;box-shadow:var(--shadow)}
+.tile .nm{font-weight:700;font-size:13px;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .inq{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:5px}
+.tile:active{transform:scale(.97)}
+/* nav */
+nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:center;gap:4px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));z-index:50}
+nav button{flex:1;max-width:170px;background:none;padding:8px 4px;border-radius:12px;font-size:12px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px}
+nav button .ic{font-size:19px}
+nav button.on{background:var(--green-bg);color:var(--green)}
+/* modal */
+#modal-root{position:fixed;inset:0;display:none;z-index:100}
+#modal-root.open{display:block}
+.mBack{position:absolute;inset:0;background:rgba(25,28,22,.45)}
+.mBox{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:calc(100% - 36px);max-width:460px;max-height:86vh;overflow-y:auto;background:var(--card);border-radius:18px;padding:18px}
+@media(max-width:600px){.mBox{top:auto;bottom:0;transform:translateX(-50%);width:100%;max-width:540px;border-radius:18px 18px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom))}}
+.mBox h3{font-size:18px;margin-bottom:4px}
+.mAct{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+/* lists */
+.compRow{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 0;border-bottom:1px solid var(--line)}
+.compRow:last-child{border-bottom:none}
+.docThumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.docThumbs .dth{width:74px;height:74px;border-radius:10px;object-fit:cover;border:1px solid var(--line);cursor:pointer}
+.back{background:none;color:var(--green);font-weight:700;font-size:14px;padding:0;margin-bottom:10px}
+.center{text-align:center}
+.login{min-height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center}
+.login h1{font-size:30px}
+.hint{font-size:12px;color:var(--muted);margin-top:6px}
+.pend{padding:10px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pend:last-child{border-bottom:none}
+.expRow{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+.expRow:last-child{border-bottom:none}
+a{color:var(--green)}
+.iconb{background:none;font-size:15px;padding:4px 6px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div id="app"><div class="login"><div class="disp" style="font-size:44px">🏘️</div><h1>Carregando…</h1></div></div>
+<div id="modal-root"><div class="mBack" onclick="closeModal()"></div><div class="mBox" id="mBox"></div></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+/* ========= CONFIGURE AQUI ========= */
+const firebaseConfig = {
+  apiKey: "AIzaSyBiUbf1qY3sIBv9AGcupI1AdkC_7joO13Q",
+  authDomain: "kitnets-b1c68.firebaseapp.com",
+  projectId: "kitnets-b1c68",
+  storageBucket: "kitnets-b1c68.firebasestorage.app",
+  messagingSenderId: "214020402905",
+  appId: "1:214020402905:web:0bb09e23f0e1b11a27d8c8"
+};
+const EMAILS_PERMITIDOS = ["noletoadrielly@gmail.com"]; // pode adicionar o do seu pai
+/* ================================== */
+
+const fb = initializeApp(firebaseConfig);
+const auth = getAuth(fb);
+const db = getFirestore(fb);
+
+/* ---------- helpers ---------- */
+const fmt = v => Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const pad = n => String(n).padStart(2,"0");
+const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const hoje = () => { const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+const ymAtual = () => hoje().slice(0,7);
+const diasNoMes = ym => { const [y,m]=ym.split("-").map(Number); return new Date(y,m,0).getDate(); };
+const ymLabel = ym => { const [y,m]=ym.split("-"); return `${MESES[+m-1]} ${y}`; };
+const dBr = s => s ? s.split("-").reverse().join("/") : "—";
+const ymAdd = (ym,n) => { let [y,m]=ym.split("-").map(Number); m+=n; while(m>12){m-=12;y++} while(m<1){m+=12;y--} return `${y}-${pad(m)}`; };
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid = () => Math.random().toString(36).slice(2,9);
+
+/* ---------- estado ---------- */
+let user=null, casas=[], unidades=[], contratos=[], pagamentos=[], despesas=[], cobrancas=[];
+let view={name:"home"}, mesSel=ymAtual(), unsub=[], carregado={c:0};
+
+const $ = s => document.querySelector(s);
+const app = $("#app");
+
+/* ---------- auth ---------- */
+onAuthStateChanged(auth, async u => {
+  if(!u){ user=null; renderLogin(); return; }
+  if(!EMAILS_PERMITIDOS.includes(u.email)){ await signOut(auth); alert("Este e-mail não tem acesso ao sistema."); renderLogin(); return; }
+  user=u; iniciar();
+});
+
+function renderLogin(){
+  app.innerHTML = `<div class="login">
+    <div class="disp" style="font-size:44px">🏘️</div>
+    <h1>Kitnets</h1>
+    <p class="muted">Gestão de aluguéis · Rua 8 e Coronel Fleury</p>
+    <button class="btn" id="btnLogin">Entrar com Google</button>
+  </div>`;
+  $("#btnLogin").onclick = () => signInWithPopup(auth, new GoogleAuthProvider()).catch(e=>alert("Erro no login: "+e.message));
+}
+
+/* ---------- carregar dados (tempo real) ---------- */
+function iniciar(){
+  unsub.forEach(f=>f()); unsub=[];
+  const escuta = (nome, setter) => unsub.push(onSnapshot(collection(db,nome), s=>{
+    setter(s.docs.map(d=>({id:d.id,...d.data()})));
+    carregado[nome]=1; render();
+  }));
+  escuta("casas", v=>casas=v.sort((a,b)=>(a.ordem||0)-(b.ordem||0)));
+  escuta("unidades", v=>unidades=v.sort((a,b)=>(a.ordem||0)-(b.ordem||0)||a.nome.localeCompare(b.nome,"pt-BR",{numeric:true})));
+  escuta("contratos", v=>contratos=v);
+  escuta("pagamentos", v=>pagamentos=v);
+  escuta("despesas", v=>despesas=v.sort((a,b)=>(b.vencimento||b.data||"").localeCompare(a.vencimento||a.data||"")));
+  escuta("cobrancas", v=>cobrancas=v.sort((a,b)=>(a.vencimento||"").localeCompare(b.vencimento||"")));
+  setTimeout(seedSePreciso, 2500);
+}
+
+async function seedSePreciso(){
+  if(!carregado["casas"] || casas.length) return;
+  const batch = writeBatch(db);
+  const mk = (nome,ordem)=>{ const r=doc(collection(db,"casas")); batch.set(r,{nome,ordem}); return r.id; };
+  const c1=mk("Rua 8 · São João",1), c2=mk("Coronel Fleury · Kitnets",2), c3=mk("Coronel Fleury · Casa",3);
+  for(let i=1;i<=10;i++) batch.set(doc(collection(db,"unidades")),{casaId:c1,nome:`Kitnet ${pad(i)}`,ordem:i});
+  for(let i=1;i<=4;i++)  batch.set(doc(collection(db,"unidades")),{casaId:c2,nome:`Kitnet ${pad(i)}`,ordem:i});
+  batch.set(doc(collection(db,"unidades")),{casaId:c3,nome:"Casa",ordem:1});
+  await batch.commit();
+}
+
+/* ---------- regras de negócio ---------- */
+const contratoAtivoDa = uId => contratos.find(c=>c.unidadeId===uId && c.ativo);
+const ymDe = s => s.slice(0,7);
+
+function contratoNoMes(c, ym){ // contrato vigente na competência ym
+  if(ymDe(c.dataEntrada) > ym) return false;
+  const fim = c.ativo ? ymAtual() : ymDe(c.dataSaida||c.dataEntrada);
+  return ym <= fim;
+}
+function valorVigente(c, ym){
+  const ref = ym+"-31";
+  const vs = [...(c.valores||[])].sort((a,b)=>a.desde.localeCompare(b.desde));
+  let v = vs.length ? vs[0].valor : 0;
+  for(const x of vs) if(x.desde <= ref) v = x.valor;
+  return Number(v);
+}
+function devidoComp(c, ym){
+  const aj = (c.ajustes||[]).filter(a=>a.comp===ym).reduce((s,a)=>s+Number(a.valor),0);
+  return valorVigente(c,ym) + aj;
+}
+const pagoComp = (cId, ym) => pagamentos.filter(p=>p.contratoId===cId && p.comp===ym).reduce((s,p)=>s+Number(p.valor),0);
+function vencComp(c, ym){ return `${ym}-${pad(Math.min(c.diaVenc, diasNoMes(ym)))}`; }
+function statusComp(c, ym){
+  const dev=devidoComp(c,ym), pg=pagoComp(c.id,ym);
+  if(dev<=0) return "pago";
+  if(pg>=dev-0.005) return "pago";
+  const venceu = vencComp(c,ym) < hoje();
+  if(pg>0) return venceu ? "atrasado" : "parcial";
+  return venceu ? "atrasado" : "aberto";
+}
+const stTag = s => ({pago:'<span class="tag t-pago">Pago</span>',parcial:'<span class="tag t-parcial">Parcial</span>',aberto:'<span class="tag t-aberto">Em aberto</span>',atrasado:'<span class="tag t-atrasado">Atrasado</span>'}[s]);
+
+/* despesas: vencimento/pagamento */
+const vencDesp = d => d.vencimento || d.data || hoje();
+const stDesp = d => d.pagamento ? "pago" : (vencDesp(d) < hoje() ? "vencido" : "avencer");
+const stDespTag = s => ({pago:'<span class="tag t-pago">Paga</span>',vencido:'<span class="tag t-atrasado">Vencida</span>',avencer:'<span class="tag t-parcial">A vencer</span>'}[s]);
+const FORMAS = ["Pix","Dinheiro","Boleto","Débito automático","Cartão","Transferência","Outro"];
+const CONTAS_BASE = ["Sicredi","Dinheiro"];
+const contasDisponiveis = () => [...new Set([...CONTAS_BASE, ...despesas.map(d=>d.conta).filter(Boolean)])];
+function compsDo(c){
+  const ini = ymDe(c.dataEntrada);
+  const fim = c.ativo ? ymAtual() : ymDe(c.dataSaida||c.dataEntrada);
+  const out=[]; let ym=ini;
+  while(ym<=fim){ out.push(ym); ym=ymAdd(ym,1); if(out.length>240) break; }
+  return out.reverse();
+}
+function mesesEntre(d1,d2){ const [y1,m1]=d1.split("-").map(Number),[y2,m2]=d2.split("-").map(Number); return Math.max(0,(y2-y1)*12+(m2-m1)); }
+
+/* ---------- cobranças avulsas (por inquilino) ---------- */
+const cobrancasDe = cId => cobrancas.filter(x=>x.contratoId===cId);
+const pagoCob = cob => (cob.pagamentos||[]).reduce((s,p)=>s+Number(p.valor),0);
+const faltaCob = cob => Math.max(0, Number(cob.valor) - pagoCob(cob));
+function statusCob(cob){
+  const f=faltaCob(cob);
+  if(f<=0.005) return "pago";
+  const venceu=(cob.vencimento||hoje())<hoje();
+  return pagoCob(cob)>0 ? (venceu?"atrasado":"parcial") : (venceu?"atrasado":"aberto");
+}
+const TIPO_COB={aluguel:"🏠 Aluguel atrasado",agua:"💧 Água",energia:"⚡ Energia",reparo:"🔧 Reparo",acordo:"🤝 Acordo",outro:"📦 Outro"};
+
+/* ---------- render ---------- */
+function render(){
+  if(!user) return;
+  if(view.name==="home") renderHome();
+  else if(view.name==="casas") renderCasas();
+  else if(view.name==="unidade") renderUnidade(view.unidadeId);
+  else if(view.name==="despesas") renderDespesas();
+  else if(view.name==="relatorio") renderRelatorio();
+}
+function nav(){
+  const b=(n,ic,l)=>`<button class="${view.name===n?'on':''}" onclick="go('${n}')"><span class="ic">${ic}</span>${l}</button>`;
+  return `<nav>${b("home","📊","Início")}${b("casas","🏘️","Casas")}${b("despesas","💸","Despesas")}${b("relatorio","📄","Relatório")}</nav>`;
+}
+window.go = n => { view={name:n}; render(); window.scrollTo(0,0); };
+window.abrirUnidade = id => { view={name:"unidade",unidadeId:id}; render(); window.scrollTo(0,0); };
+window.mudaMes = n => { mesSel=ymAdd(mesSel,n); render(); };
+
+/* ---------- HOME / DASHBOARD ---------- */
+function renderHome(){
+  const ym=mesSel;
+  const ativosNoMes = contratos.filter(c=>contratoNoMes(c,ym));
+  let aReceber=0, recebido=0, atrasado=0;
+  const pend=[];
+  for(const c of ativosNoMes){
+    const dev=devidoComp(c,ym), pg=pagoComp(c.id,ym);
+    aReceber+=dev; recebido+=pg;
+    const falta=Math.max(0,dev-pg);
+    if(falta>0.005){
+      const venceu = vencComp(c,ym) < hoje();
+      if(venceu) atrasado+=falta;
+      const u=unidades.find(x=>x.id===c.unidadeId);
+      pend.push({c,u,falta,venceu,dev,pg});
+    }
+  }
+  const despLista = despesas.filter(d=>ymDe(vencDesp(d))===ym);
+  const despMes = despLista.reduce((s,d)=>s+Number(d.valor),0);
+  const despPagas = despLista.filter(d=>d.pagamento).reduce((s,d)=>s+Number(d.valor),0);
+  const ocupadas = new Set(ativosNoMes.map(c=>c.unidadeId)).size;
+  const totalU = unidades.length;
+  const ocup = totalU ? Math.round(100*ocupadas/totalU) : 0;
+  const encerrOuAtivos = contratos.filter(c=>c.dataEntrada);
+  const permMedia = encerrOuAtivos.length ? Math.round(encerrOuAtivos.reduce((s,c)=>s+mesesEntre(ymDe(c.dataEntrada), c.ativo?ymAtual():ymDe(c.dataSaida||c.dataEntrada)),0)/encerrOuAtivos.length) : 0;
+  const liq = recebido - despMes;
+
+  pend.sort((a,b)=>(b.venceu-a.venceu)||b.falta-a.falta);
+
+  // cobranças avulsas em aberto (independente do mês de aluguel)
+  const cobPend=[];
+  for(const cob of cobrancas){
+    const f=faltaCob(cob); if(f<=0.005) continue;
+    const c=contratos.find(x=>x.id===cob.contratoId); if(!c) continue;
+    const u=unidades.find(x=>x.id===c.unidadeId);
+    const venceu=(cob.vencimento||hoje())<hoje();
+    cobPend.push({cob,c,u,f,venceu});
+  }
+  cobPend.sort((a,b)=>(b.venceu-a.venceu)||b.f-a.f);
+
+  app.innerHTML = `
+  <div class="hdr"><div><div class="sub">Gestão de aluguéis</div><h1>Kitnets</h1></div>
+    <button class="iconb" title="Sair" onclick="sair()">⎋ sair</button></div>
+  <div class="mSel">
+    <button onclick="mudaMes(-1)">‹</button><div class="lbl">${ymLabel(ym)}</div><button onclick="mudaMes(1)">›</button>
+  </div>
+  <div class="kgrid">
+    <div class="kpi"><div class="l">Ocupação</div><div class="v">${ocup}%</div><div class="muted">${ocupadas} de ${totalU} unidades</div></div>
+    <div class="kpi"><div class="l">Permanência média</div><div class="v">${permMedia} ${permMedia===1?"mês":"meses"}</div><div class="muted">por inquilino</div></div>
+    <div class="kpi"><div class="l">Aluguéis do mês</div><div class="v">${fmt(aReceber)}</div><div class="muted">previsto</div></div>
+    <div class="kpi"><div class="l">Recebido</div><div class="v" style="color:var(--green)">${fmt(recebido)}</div><div class="muted">${aReceber?Math.round(100*recebido/aReceber):0}% do previsto</div></div>
+    <div class="kpi"><div class="l">Em atraso</div><div class="v" style="color:${atrasado>0?'var(--red)':'var(--ink)'}">${fmt(atrasado)}</div><div class="muted">venceu e não pagou</div></div>
+    <div class="kpi"><div class="l">Despesas</div><div class="v" style="color:var(--amber)">${fmt(despMes)}</div><div class="muted">pagas ${fmt(despPagas)} · em aberto ${fmt(despMes-despPagas)}</div></div>
+    <div class="kpi liq"><div class="l">Resultado do mês (recebido − despesas)</div><div class="v" style="color:${liq>=0?'var(--green)':'var(--red)'}">${fmt(liq)}</div></div>
+  </div>
+  <div class="card">
+    <div class="spread"><h3 class="disp" style="font-size:15.5px">Pendências de ${ymLabel(ym)}</h3></div>
+    ${pend.length ? pend.map(p=>`
+      <div class="pend" onclick="abrirUnidade('${p.u?.id}')" style="cursor:pointer">
+        <div><b>${esc(p.c.nome)}</b><div class="muted">${esc(p.u?.nome||"?")} · venc. dia ${p.c.diaVenc} · pagou ${fmt(p.pg)} de ${fmt(p.dev)}</div></div>
+        <div style="text-align:right"><b style="color:${p.venceu?'var(--red)':'var(--amber)'}">${fmt(p.falta)}</b><div>${p.venceu?'<span class="tag t-atrasado">Atrasado</span>':'<span class="tag t-aberto">A vencer</span>'}</div></div>
+      </div>`).join("") : `<p class="muted" style="padding:8px 0">Nenhuma pendência neste mês. 🎉</p>`}
+  </div>
+  ${cobPend.length?`<div class="card">
+    <div class="spread"><h3 class="disp" style="font-size:15.5px">Cobranças avulsas em aberto</h3></div>
+    ${cobPend.map(p=>`<div class="pend" onclick="abrirUnidade('${p.u?.id}')" style="cursor:pointer">
+      <div><b>${esc(p.c.nome)}</b><div class="muted">${esc(p.u?.nome||"?")} · ${esc((TIPO_COB[p.cob.tipo]||p.cob.tipo))}${p.cob.descricao?` · ${esc(p.cob.descricao)}`:""} · venc. ${dBr(p.cob.vencimento)}</div></div>
+      <div style="text-align:right"><b style="color:${p.venceu?'var(--red)':'var(--amber)'}">${fmt(p.f)}</b><div>${p.venceu?'<span class="tag t-atrasado">Atrasado</span>':'<span class="tag t-aberto">A vencer</span>'}</div></div>
+    </div>`).join("")}
+  </div>`:""}
+  ${nav()}`;
+}
+window.sair = () => signOut(auth);
+
+/* ---------- CASAS ---------- */
+function renderCasas(){
+  const ym=ymAtual();
+  app.innerHTML = `
+  <div class="hdr"><div><div class="sub">Unidades</div><h1>Casas</h1></div>
+    <button class="btn sm sec" onclick="novaCasa()">＋ casa</button></div>
+  ${casas.map(cs=>{
+    const us = unidades.filter(u=>u.casaId===cs.id);
+    return `<div style="margin-bottom:18px">
+      <div class="casaHd"><h2>${esc(cs.nome)}</h2>
+        <div class="row"><button class="iconb" onclick="renomearCasa('${cs.id}')">✎</button>
+        <button class="btn sm sec" onclick="novaUnidade('${cs.id}')">＋ kitnet</button></div></div>
+      <div class="tiles">
+        ${us.map(u=>{
+          const c=contratoAtivoDa(u.id);
+          const st = c ? statusComp(c,ym) : "vaga";
+          const tag = c ? stTag(st) : '<span class="tag t-vaga">Vaga</span>';
+          return `<div class="tile" onclick="abrirUnidade('${u.id}')">
+            <div class="nm">${esc(u.nome)}</div>
+            <div class="inq">${c?esc(c.nome.split(" ")[0]):"—"}</div>${tag}</div>`;
+        }).join("") || `<p class="muted">Nenhuma unidade ainda.</p>`}
+      </div></div>`;
+  }).join("")}
+  ${nav()}`;
+}
+window.novaCasa = async () => { const n=prompt("Nome da casa/endereço:"); if(!n) return; await addDoc(collection(db,"casas"),{nome:n.trim(),ordem:casas.length+1}); };
+window.renomearCasa = async id => { const cs=casas.find(c=>c.id===id); const n=prompt("Nome da casa:",cs.nome); if(!n) return; await updateDoc(doc(db,"casas",id),{nome:n.trim()}); };
+window.novaUnidade = async casaId => { const n=prompt("Nome da unidade (ex.: Kitnet 11):"); if(!n) return; const ord=unidades.filter(u=>u.casaId===casaId).length+1; await addDoc(collection(db,"unidades"),{casaId,nome:n.trim(),ordem:ord}); };
+
+/* ---------- UNIDADE ---------- */
+async function renderUnidade(uId){
+  const u = unidades.find(x=>x.id===uId); if(!u){ go("casas"); return; }
+  const cs = casas.find(c=>c.id===u.casaId);
+  const c = contratoAtivoDa(uId);
+  const antigos = contratos.filter(x=>x.unidadeId===uId && !x.ativo).sort((a,b)=>(b.dataSaida||"").localeCompare(a.dataSaida||""));
+
+  let corpo="";
+  if(!c){
+    corpo = `<div class="card center" style="padding:22px">
+      <div style="font-size:30px">🔑</div>
+      <p style="margin:8px 0 12px"><b>${esc(u.nome)} está vaga.</b></p>
+      <button class="btn" onclick="novoInquilino('${uId}')">Cadastrar inquilino</button>
+      <div class="row" style="justify-content:center;margin-top:14px">
+        <button class="btn sm sec" onclick="renomearUnidade('${uId}')">Renomear</button>
+        <button class="btn sm danger" onclick="excluirUnidade('${uId}')">Excluir unidade</button>
+      </div></div>`;
+  } else {
+    const comps = compsDo(c);
+    const vals = [...(c.valores||[])].sort((a,b)=>b.desde.localeCompare(a.desde));
+    corpo = `
+    <div class="card">
+      <div class="spread"><h3 class="disp" style="font-size:17px">${esc(c.nome)}</h3>
+        <button class="iconb" onclick="editarInquilino('${c.id}')">✎</button></div>
+      <p class="muted" style="margin-top:2px">
+        ${c.telefone?`📞 <a href="https://wa.me/55${c.telefone.replace(/\D/g,"")}">${esc(c.telefone)}</a> · `:""}
+        entrada ${dBr(c.dataEntrada)} · ${mesesEntre(ymDe(c.dataEntrada),ymAtual())} meses de casa</p>
+      ${c.trabalho?`<p class="muted">💼 ${esc(c.trabalho)}</p>`:""}
+      ${c.obs?`<p class="muted">📝 ${esc(c.obs)}</p>`:""}
+      <div class="row" style="margin-top:10px;flex-wrap:wrap">
+        <span class="tag t-pago" style="font-size:12.5px">Aluguel ${fmt(valorVigente(c,ymAtual()))}</span>
+        <span class="tag t-aberto" style="font-size:12.5px">Vence dia ${c.diaVenc}</span>
+      </div>
+      ${vals.length>1?`<details style="margin-top:8px"><summary class="muted" style="cursor:pointer">Histórico de valores</summary>
+        ${vals.map(v=>`<div class="muted" style="padding:3px 0">• ${fmt(v.valor)} desde ${dBr(v.desde)}</div>`).join("")}</details>`:""}
+      <div class="row" style="margin-top:12px;flex-wrap:wrap">
+        <button class="btn sm sec" onclick="reajustar('${c.id}')">Reajustar valor</button>
+        <button class="btn sm sec" onclick="mudarVenc('${c.id}')">Mudar vencimento</button>
+        <button class="btn sm sec" onclick="transferir('${c.id}')">Transferir de kitnet</button>
+        <button class="btn sm danger" onclick="encerrar('${c.id}')">Encerrar contrato</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="spread"><h3 class="disp" style="font-size:15.5px">Documentos</h3>
+        <button class="btn sm sec" onclick="addDocFoto('${c.id}')">＋ anexar</button></div>
+      <div class="docThumbs" id="docs">​<span class="muted">Carregando…</span></div>
+    </div>
+    <div class="card">
+      <h3 class="disp" style="font-size:15.5px;margin-bottom:4px">Aluguéis</h3>
+      ${comps.map(ym=>{
+        const dev=devidoComp(c,ym), pg=pagoComp(c.id,ym), st=statusComp(c,ym);
+        const pgs = pagamentos.filter(p=>p.contratoId===c.id&&p.comp===ym).sort((a,b)=>a.data.localeCompare(b.data));
+        const aj = (c.ajustes||[]).filter(a=>a.comp===ym);
+        return `<div class="compRow" style="flex-direction:column;align-items:stretch">
+          <div class="spread">
+            <div><b>${ymLabel(ym)}</b><div class="muted">venc. ${dBr(vencComp(c,ym))} · ${fmt(pg)} de ${fmt(dev)}${dev-pg>0.005?` · falta <b>${fmt(dev-pg)}</b>`:""}</div></div>
+            <div class="row">${stTag(st)}<button class="btn sm" onclick="regPag('${c.id}','${ym}')">＋ pagar</button></div>
+          </div>
+          ${aj.map(a=>`<div class="muted" style="margin-top:4px">⚙️ Ajuste ${fmt(a.valor)} — ${esc(a.motivo||"")}</div>`).join("")}
+          ${pgs.map(p=>`<div class="muted spread" style="margin-top:4px"><span>💵 ${dBr(p.data)} — ${fmt(p.valor)}${p.obs?` · ${esc(p.obs)}`:""}</span><button class="iconb" onclick="delPag('${p.id}')">🗑</button></div>`).join("")}
+        </div>`;
+      }).join("")}
+    </div>
+    <div class="card">
+      <div class="spread"><h3 class="disp" style="font-size:15.5px">Cobranças avulsas</h3>
+        <button class="btn sm" onclick="novaCob('${c.id}')">＋ cobrança</button></div>
+      ${(() => {
+        const cbs=cobrancasDe(c.id);
+        if(!cbs.length) return `<p class="muted" style="padding:6px 0">Nenhuma cobrança avulsa. Use para dívidas antigas, rateio de água/energia, reparos ou acordos.</p>`;
+        return cbs.map(cob=>{
+          const st=statusCob(cob), pg=pagoCob(cob), f=faltaCob(cob);
+          const pgs=(cob.pagamentos||[]);
+          return `<div class="compRow" style="flex-direction:column;align-items:stretch">
+            <div class="spread">
+              <div><b>${TIPO_COB[cob.tipo]||cob.tipo}</b>${cob.descricao?` · ${esc(cob.descricao)}`:""}
+                <div class="muted">venc. ${dBr(cob.vencimento)} · ${fmt(pg)} de ${fmt(cob.valor)}${f>0.005?` · falta <b>${fmt(f)}</b>`:""}</div></div>
+              <div class="row">${stTag(st)}${f>0.005?`<button class="btn sm" onclick="pagarCob('${cob.id}')">＋ pagar</button>`:""}
+                <button class="iconb" onclick="delCob('${cob.id}')">🗑</button></div>
+            </div>
+            ${pgs.map((p,i)=>`<div class="muted spread" style="margin-top:4px"><span>💵 ${dBr(p.data)} — ${fmt(p.valor)}${p.obs?` · ${esc(p.obs)}`:""}</span><button class="iconb" onclick="delPagCob('${cob.id}',${i})">🗑</button></div>`).join("")}
+          </div>`;
+        }).join("");
+      })()}
+    </div>`;
+  }
+
+  app.innerHTML = `
+  <button class="back" onclick="go('casas')">‹ ${esc(cs?.nome||"Casas")}</button>
+  <div class="hdr"><div><div class="sub">${esc(cs?.nome||"")}</div><h1>${esc(u.nome)}</h1></div>
+    ${c?"":""}</div>
+  ${corpo}
+  ${antigos.length?`<div class="card"><h3 class="disp" style="font-size:15.5px">Inquilinos anteriores</h3>
+    ${antigos.map(a=>`<div class="compRow"><div><b>${esc(a.nome)}</b><div class="muted">${dBr(a.dataEntrada)} → ${dBr(a.dataSaida)}</div></div></div>`).join("")}</div>`:""}
+  ${nav()}`;
+
+  if(c) carregarDocs(c.id);
+}
+window.renomearUnidade = async id => { const u=unidades.find(x=>x.id===id); const n=prompt("Nome da unidade:",u.nome); if(!n) return; await updateDoc(doc(db,"unidades",id),{nome:n.trim()}); };
+window.excluirUnidade = async id => {
+  if(contratos.some(c=>c.unidadeId===id)) { alert("Esta unidade tem histórico de inquilinos e não pode ser excluída."); return; }
+  if(!confirm("Excluir esta unidade?")) return;
+  await deleteDoc(doc(db,"unidades",id)); go("casas");
+};
+
+/* ---------- modais ---------- */
+const mr=$("#modal-root"), mb=$("#mBox");
+function openModal(html){ mb.innerHTML=html; mr.classList.add("open"); }
+window.closeModal = () => mr.classList.remove("open");
+
+window.novoInquilino = uId => {
+  openModal(`<h3>Novo inquilino</h3><p class="muted">${esc(unidades.find(u=>u.id===uId)?.nome||"")}</p>
+    <label>Nome completo *</label><input id="f-nome">
+    <label>Telefone (WhatsApp)</label><input id="f-tel" inputmode="tel" placeholder="63 9....">
+    <label>Endereço de trabalho</label><input id="f-trab">
+    <label>Data de entrada *</label><input id="f-ent" type="date" value="${hoje()}">
+    <label>Dia do vencimento *</label><input id="f-dia" type="number" min="1" max="31" value="10">
+    <label>Valor do aluguel (R$) *</label><input id="f-val" type="number" step="0.01" inputmode="decimal">
+    <label>Observações</label><textarea id="f-obs" rows="2"></textarea>
+    <div class="mAct"><button class="btn sec" onclick="closeModal()">Cancelar</button>
+    <button class="btn" onclick="salvarInquilino('${uId}')">Salvar</button></div>`);
+};
+window.salvarInquilino = async uId => {
+  const nome=$("#f-nome").value.trim(), ent=$("#f-ent").value, dia=+$("#f-dia").value, val=parseFloat($("#f-val").value);
+  if(!nome||!ent||!dia||!val){ alert("Preencha nome, entrada, dia de vencimento e valor."); return; }
+  const u=unidades.find(x=>x.id===uId);
+  await addDoc(collection(db,"contratos"),{
+    unidadeId:uId, casaId:u.casaId, nome, telefone:$("#f-tel").value.trim(),
+    trabalho:$("#f-trab").value.trim(), obs:$("#f-obs").value.trim(),
+    dataEntrada:ent, diaVenc:dia, valores:[{valor:val,desde:ent}], ajustes:[], ativo:true
+  });
+  closeModal();
+};
+window.editarInquilino = cId => {
+  const c=contratos.find(x=>x.id===cId);
+  openModal(`<h3>Editar inquilino</h3>
+    <label>Nome</label><input id="f-nome" value="${esc(c.nome)}">
+    <label>Telefone</label><input id="f-tel" value="${esc(c.telefone||"")}">
+    <label>Endereço de trabalho</label><input id="f-trab" value="${esc(c.trabalho||"")}">
+    <label>Observações</label><textarea id="f-obs" rows="2">${esc(c.obs||"")}</textarea>
+    <div class="mAct"><button class="btn sec" onclick="closeModal()">Cancelar</button>
+    <button class="btn" onclick="salvarEdicao('${cId}')">Salvar</button></div>`);
+};
+window.salvarEdicao = async cId => {
+  await updateDoc(doc(db,"contratos",cId),{nome:$("#f-nome").value.trim(),telefone:$("#f-tel").value.trim(),trabalho:$("#f-trab").value.trim(),obs:$("#f-obs").value.trim()});
+  closeModal();
+};
+
+window.regPag = (cId, ym) => {
+  const c=contratos.find(x=>x.id===cId);
+  const falta=Math.max(0,devidoComp(c,ym)-pagoComp(cId,ym));
+  openModal(`<h3>Registrar pagamento</h3><p class="muted">${esc(c.nome)} · ${ymLabel(ym)} · falta ${fmt(falta)}</p>
+    <label>Data</label><input id="f-data" type="date" value="${hoje()}">
+    <label>Valor (R$)</label><input id="f-val" type="number" step="0.01" inputmode="decimal" value="${falta?falta.toFixed(2):""}">
+    <label>Observação (ex.: Pix, dinheiro)</label><input id="f-obs">
+    <div class="mAct"><button class="btn sec" onclick="closeModal()">Cancelar</button>
+    <button class="btn" onclick="salvarPag('${cId}','${ym}')">Salvar</button></div>`);
+};
+window.salvarPag = async (cId,ym) => {
+  const val=parseFloat($("#f-val").value); if(!val){ alert("Informe o valor."); return; }
+  await addDoc(collection(db,"pagamentos"),{contratoId:cId,comp:ym,data:$("#f-data").value||hoje(),valor:val,obs:$("#f-obs").value.trim()});
+  closeModal();
+};
+window.delPag = async id => { if(confirm("Excluir este pagamento?")) await deleteDoc(doc(db,"pagamentos",id)); };
+
+/* ---------- cobranças avulsas: criar / pagar / excluir ---------- */
+window.novaCob = cId => {
+  const c=contratos.find(x=>x.id===cId);
+  openModal(`<h3>Nova cobrança avulsa</h3><p class="muted">${esc(c.nome)}</p>
+    <label>Tipo</label><select id="f-tipo">${Object.entries(TIPO_COB).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select>
+    <label>Descrição (ex.: Aluguel de maio, rateio água junho)</label><input id="f-desc">
+    <label>Valor (R$)</label><input id="f-val" type="number" step="0.01" inputmode="decimal">
+    <label>Vencimento</label><input id="f-venc" type="date" value="${hoje()}">
+    <label class="row" style="margin-top:12px"><input type="checkbox" id="f-jaPagou" style="width:auto" onchange="document.getElementById('cob-pg').style.display=this.checked?'block':'none'"> já foi paga integralmente</label>
+    <div id="cob-pg" style="display:none"><label>Data do pagamento</label><input id="f-pgData" type="date" value="${hoje()}"></div>
+    <div class="mAct"><button class="btn sec" onclick="closeModal()">Cancelar</button>
+    <button class="btn" onclick="salvarCob('${cId}')">Salvar</button></div>`);
+};
+window.salvarCob = async cId => {
+  const val=parseFloat($("#f-val").value); if(!val){ alert("Informe o valor."); return; }
+  const paga=$("#f-jaPagou").checked;
+  await addDoc(collection(db,"cobrancas"),{
+    contratoId:cId, tipo:$("#f-tipo").value, descricao:$("#f-desc").value.trim(),
+    valor:val, vencimento:$("#f-venc").value||hoje(),
+    pagamentos: paga ? [{data:$("#f-pgData").value||hoje(),valor:val,obs:"pago integral"}] : []
+  });
+  closeModal();
+};
+window.pagarCob = id => {
+  const cob=cobrancas.find(x=>x.id===id); const f=faltaCob(cob);
+  openModal(`<h3>Pagar cobrança</h3><p class="muted">${TIPO_COB[cob.tipo]||cob.tipo}${cob.descricao?` · ${esc(cob.descricao)}`:""} · falta ${fmt(f)}</p>
+    <label>Data</label><input id="f-data" type="date" value="${hoje()}">
+    <label>Valor (R$)</label><input id="f-val" type="number" step="0.01" inputmode="decimal" value="${f.toFixed(2)}">
+    <label>Observação (ex.: Pix, dinheiro)</label><input id="f-obs">
+    <div class="mAct"><button class="btn sec" onclick="closeModal()">Cancelar</button>
+    <button class="btn" onclick="confPagarCob('${id}')">Salvar</button></div>`);
+};
+window.confPagarCob = async id => {
+  const cob=cobrancas.find(x=>x.id===id);
+  const val=parseFloat($("#f-val").value); if(!val){ alert("Informe o valor."); return; }
+  const novos=[...(cob.pagamentos||[]),{data:$("#f-data").value||hoje(),valor:val,obs:$("#f-obs").value.trim()}];
+  await updateDoc(doc(db,"cobrancas",id),{pagamentos:novos});
+  closeModal();
+};
+window.delPagCob = async (id,idx) => {
+  const cob=cobrancas.find(x=>x.id===id); if(!cob) return;
+  if(!confirm("Excluir este pagamento?")) return;
+  const novos=(cob.pagamentos||[]).filter((_,i)=>i!==idx);
+  await updateDoc(doc(db,"cobrancas",id),{pagamentos:novos});
+};
+window.delCob = async id => { if(confirm("Excluir esta cobrança avulsa?")) await deleteDoc(doc(db,"cobrancas",id)); };
+
+window.reajustar = cId => {
+  const c=contratos.find(x=>x.id===cId);
+  const prox = ymAdd(ymAtual(),1)+"-01";
+  openModal(`<h3>Reajustar aluguel</h3><p class="muted">Valor atual: ${fmt(valorVigente(c,ymAtual()))}. O valor antigo fica guardado no histórico.</p>
+    <label>Novo valor (R$)</label><input id="f-val" type="number" step="0.01" inputmode="decimal">
+    <label>Vale a partir de</label><input id="f-desde" type="date" value="${prox}">
+    <div class="mAct"><button class="btn sec" onclick="closeModal()">Cancelar</button>
+    <button class="btn" onclick="salvarReaj('${cId}')">Salvar</button></div>`);
+};
+window.salvarReaj = async cId => {
+  const c=contratos.find(x=>x.id===cId);
+  const val=parseFloat($("#f-val").value), desde=$("#f-desde").value;
+  if(!val||!desde){ alert("Preencha valor e data."); return; }
+  await updateDoc(doc(db,"contratos",cId),{valores:[...(c.valores||[]),{valor:val,desde}]});
+  closeModal();
+};
+
+window.mudarVenc = cId => {
+  const c=contratos.find(x=>x.id===cId);
+  openModal(`<h3>Mudar dia do vencimento</h3>
+    <p class="muted">Hoje vence dia <b>${c.diaVenc}</b>. Se o novo dia for depois, o inquilino ganha dias a mais no ciclo — o sistema calcula o pro-rata pra cobrar na transição. Se for antes, vira desconto.</p>
+    <label>Novo dia do vencimento</label><input id="f-dia" type="number" min="1" max="31" oninput="calcPro('${cId}')">
+    <div class="card" id="pro-out" style="margin-top:12px;display:none"></div>
+    <label class="row" style="margin-top:6px"><input type="checkbox" id="f-lanca" checked style="width:auto"> lançar esse ajuste no mês atual</label>
+    <div class="mAct"><button class="btn sec" onclick="closeModal()">Cancelar</button>
+    <button class="btn" onclick="salvarVenc('${cId}')">Confirmar</button></div>`);
+};
+window.calcPro = cId => {
+  const c=contratos.find(x=>x.id===cId);
+  const novo=+$("#f-dia").value; const out=$("#pro-out");
+  if(!novo||novo<1||novo>31){ out.style.display="none"; return; }
+  const val=valorVigente(c,ymAtual());
+  const diff=novo-c.diaVenc, diaria=val/30, ajuste=+(diff*diaria).toFixed(2);
+  out.style.display="block";
+  out.innerHTML = diff===0 ? `<p class="muted">Mesmo dia, nada muda.</p>` :
+    `<p><b>${Math.abs(diff)} dia(s)</b> de diferença × diária de ${fmt(diaria)} =
+     <b style="color:${diff>0?'var(--amber)':'var(--green)'}">${diff>0?"cobrança extra":"desconto"} de ${fmt(Math.abs(ajuste))}</b></p>`;
+};
+window.salvarVenc = async cId => {
+  const c=contratos.find(x=>x.id===cId);
+  const novo=+$("#f-dia").value;
+  if(!novo||novo<1||novo>31){ alert("Informe o novo dia (1 a 31)."); return; }
+  const upd={diaVenc:novo};
+  const diff=novo-c.diaVenc;
+  if(diff!==0 && $("#f-lanca").checked){
+    const val=valorVigente(c,ymAtual());
+    const ajuste=+((val/30)*diff).toFixed(2);
+    upd.ajustes=[...(c.ajustes||[]),{comp:ymAtual(),valor:ajuste,motivo:`Pro-rata: vencimento dia ${c.diaVenc} → dia ${novo}`}];
+  }
+  await updateDoc(doc(db,"contratos",cId),upd);
+  closeModal();
+};
+
+window.encerrar = cId => {
+  openModal(`<h3>Encerrar contrato</h3><p class="muted">A kitnet fica vaga e todo o histórico é preservado.</p>
+    <label>Data de saída</label><input id="f-saida" type="date" value="${hoje()}">
+    <div class="mAct"><button class="btn sec" onclick="closeModal()">Cancelar</button>
+    <button class="btn danger" style="background:var(--red);color:#fff" onclick="confEncerrar('${cId}')">Encerrar</button></div>`);
+};
+window.confEncerrar = async cId => {
+  await updateDoc(doc(db,"contratos",cId),{ativo:false,dataSaida:$("#f-saida").value||hoje()});
+  closeModal(); go("casas");
+};
+
+/* ---------- documentos (fotos comprimidas no Firestore) ---------- */
+async function carregarDocs(cId){
+  const box=$("#docs"); if(!box) return;
+  const snap=await getDocs(query(collection(db,"documentos"),where("contratoId","==",cId)));
+  const docsL=snap.docs.map(d=>({id:d.id,...d.data()}));
+  window._docsCache = docsL;
+  box.innerHTML = docsL.length ? docsL.map(d=>`
+    <div style="text-align:center">
+      <img class="dth" src="${d.base64}" onclick="verDocId('${d.id}')">
+      <div class="muted" style="font-size:10.5px;max-width:74px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.nome)}</div>
+    </div>`).join("") : `<span class="muted">Nenhum documento anexado.</span>`;
+}
+window.verDocId = id => {
+  const d=(window._docsCache||[]).find(x=>x.id===id); if(!d) return;
+  openModal(`<h3>${esc(d.nome)}</h3><img src="${d.base64}" style="width:100%;border-radius:12px;margin-top:8px">
+    <div class="mAct"><button class="btn danger" onclick="delDoc('${id}')">Excluir</button>
+    <button class="btn sec" onclick="closeModal()">Fechar</button></div>`);
+};
+window.delDoc = async id => { if(!confirm("Excluir documento?")) return; await deleteDoc(doc(db,"documentos",id)); closeModal(); render(); };
+window.addDocFoto = cId => {
+  const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*";
+  inp.onchange = async () => {
+    const f=inp.files[0]; if(!f) return;
+    const nome=prompt("Nome do documento (ex.: RG frente):", f.name.replace(/\.[^.]+$/,"")) || f.name;
+    try{
+      const b64=await comprimir(f);
+      if(b64.length>950000){ alert("Imagem grande demais mesmo comprimida. Tente uma foto mais próxima/menor."); return; }
+      await addDoc(collection(db,"documentos"),{contratoId:cId,nome,data:hoje(),base64:b64});
+      carregarDocs(cId);
+    }catch(e){ alert("Erro ao anexar: "+e.message); }
+  };
+  inp.click();
+};
+function comprimir(file){
+  return new Promise((res,rej)=>{
+    const img=new Image(); const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      const MAX=1100; let {width:w,height:h}=img;
+      if(Math.max(w,h)>MAX){ const k=MAX/Math.max(w,h); w=Math.round(w*k); h=Math.round(h*k); }
+      const cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+      cv.getContext("2d").drawImage(img,0,0,w,h);
+      let q=0.72, out=cv.toDataURL("image/jpeg",q);
+      while(out.length>900000 && q>0.3){ q-=0.1; out=cv.toDataURL("image/jpeg",q); }
+      URL.revokeObjectURL(url); res(out);
+    };
+    img.onerror=()=>rej(new Error("não consegui ler a imagem"));
+    img.src=url;
+  });
+}
+
+/* ---------- TRANSFERIR INQUILINO DE KITNET ---------- */
+window.transferir = cId => {
+  const c=contratos.find(x=>x.id===cId);
+  const uAtual=unidades.find(u=>u.id===c.unidadeId);
+  // unidades vagas (sem contrato ativo), exceto a atual
+  const vagas=unidades.filter(u=>u.id!==c.unidadeId && !contratoAtivoDa(u.id));
+  if(!vagas.length){ alert("Não há nenhuma kitnet vaga para transferir. Encerre ou libere uma unidade primeiro."); return; }
+  const opts=casas.map(cs=>{
+    const us=vagas.filter(u=>u.casaId===cs.id);
+    return us.length ? `<optgroup label="${esc(cs.nome)}">${us.map(u=>`<option value="${u.id}">${esc(u.nome)}</option>`).join("")}</optgroup>` : "";
+  }).join("");
+  openModal(`<h3>Transferir de kitnet</h3>
+    <p class="muted">${esc(c.nome)} está em <b>${esc(uAtual?.nome||"?")}</b>. O histórico de aluguéis fica preservado nesta kitnet; um novo contrato começa na kitnet de destino, mantendo nome, telefone, documentos e o valor atual (${fmt(valorVigente(c,ymAtual()))}).</p>
+    <label>Nova kitnet</label><select id="f-dest">${opts}</select>
+    <label>Data da mudança</label><input id="f-mud" type="date" value="${hoje()}">
+    <label>Valor do aluguel na nova kitnet (R$)</label><input id="f-val" type="number" step="0.01" value="${valorVigente(c,ymAtual())}">
+    <label>Dia do vencimento</label><input id="f-dia" type="number" min="1" max="31" value="${c.diaVenc}">
+    <div class="mAct"><button class="btn sec" onclick="closeModal()">Cancelar</button>
+    <button class="btn" onclick="confTransferir('${cId}')">Transferir</button></div>`);
+};
+window.confTransferir = async cId => {
+  const c=contratos.find(x=>x.id===cId);
+  const destId=$("#f-dest").value, mud=$("#f-mud").value||hoje();
+  const val=parseFloat($("#f-val").value)||valorVigente(c,ymAtual());
+  const dia=+$("#f-dia").value||c.diaVenc;
+  if(!destId){ alert("Escolha a kitnet de destino."); return; }
+  const uDest=unidades.find(u=>u.id===destId);
+  // 1) encerra o contrato atual na data da mudança
+  await updateDoc(doc(db,"contratos",cId),{ativo:false,dataSaida:mud,motivoSaida:`Transferido para ${uDest.nome}`});
+  // 2) abre novo contrato na kitnet de destino, herdando os dados do inquilino
+  const novo=await addDoc(collection(db,"contratos"),{
+    unidadeId:destId, casaId:uDest.casaId, nome:c.nome, telefone:c.telefone||"",
+    trabalho:c.trabalho||"", obs:c.obs||"", dataEntrada:mud, diaVenc:dia,
+    valores:[{valor:val,desde:mud}], ajustes:[], ativo:true,
+    transferidoDe:c.unidadeId, contratoAnterior:cId
+  });
+  // 3) copia os documentos anexados para o novo contrato
+  try{
+    const snap=await getDocs(query(collection(db,"documentos"),where("contratoId","==",cId)));
+    for(const d of snap.docs){ const x=d.data(); await addDoc(collection(db,"documentos"),{contratoId:novo.id,nome:x.nome,data:x.data,base64:x.base64}); }
+  }catch(e){}
+  closeModal();
+  abrirUnidade(destId);
+};
+
+/* ---------- DESPESAS ---------- */
+const TIPO_DESP={agua:"💧 Água",energia:"⚡ Energia",reparo:"🔧 Reparo",outro:"📦 Outro"};
+function renderDespesas(){
+  const ym=mesSel;
+  const lista=despesas.filter(d=>ymDe(vencDesp(d))===ym);
+  const total=lista.reduce((s,d)=>s+Number(d.valor),0);
+  const pagas=lista.filter(d=>d.pagamento).reduce((s,d)=>s+Number(d.valor),0);
+  const vencidas=lista.filter(d=>stDesp(d)==="vencido").reduce((s,d)=>s+Number(d.valor),0);
+  const porCasa={};
+  for(const d of lista){ porCasa[d.casaId]=(porCasa[d.casaId]||0)+Number(d.valor); }
+  app.innerHTML = `
+  <div class="hdr"><div><div class="sub">Água · energia · reparos</div><h1>Despesas</h1></div>
+    <button class="btn sm" onclick="novaDespesa()">＋ lançar</button></div>
+  <div class="mSel"><button onclick="mudaMes(-1)">‹</button><div class="lbl">${ymLabel(ym)}</div><button onclick="mudaMes(1)">›</button></div>
+  <div class="kgrid">
+    <div class="kpi"><div class="l">Total do mês</div><div class="v" style="color:var(--amber)">${fmt(total)}</div>
+      <div class="muted">${casas.filter(c=>porCasa[c.id]).map(c=>`${esc(c.nome)}: ${fmt(porCasa[c.id])}`).join(" · ")||"sem lançamentos"}</div></div>
+    <div class="kpi"><div class="l">Situação</div>
+      <div class="v" style="color:var(--green);font-size:17px">✓ ${fmt(pagas)}</div>
+      <div class="muted">em aberto ${fmt(total-pagas)}${vencidas>0.005?` · <b style="color:var(--red)">vencidas ${fmt(vencidas)}</b>`:""}</div></div>
+  </div>
+  <div class="card">
+    ${lista.length ? lista.map(d=>{
+      const cs=casas.find(c=>c.id===d.casaId);
+      const st=stDesp(d);
+      return `<div class="expRow">
+        <div><b>${TIPO_DESP[d.tipo]||d.tipo}</b>${d.descricao?` · ${esc(d.descricao)}`:""}
+          <div class="muted">${esc(cs?.nome||"?")} · vence ${dBr(vencDesp(d))}</div>
+          ${d.pagamento?`<div class="muted">✓ pago ${dBr(d.pagamento)}${d.formaPag?` · ${esc(d.formaPag)}`:""}${d.conta?` · ${esc(d.conta)}`:""}</div>`:""}
+        </div>
+        <div style="text-align:right">
+          <b>${fmt(d.valor)}</b>
+          <div class="row" style="justify-content:flex-end;margin-top:4px">${stDespTag(st)}
+            ${!d.pagamento?`<button class="btn sm" onclick="pagarDesp('${d.id}')">pagar</button>`:""}
+            <button class="iconb" onclick="editDesp('${d.id}')">✎</button>
+            <button class="iconb" onclick="delDesp('${d.id}')">🗑</button></div>
+        </div>
+      </div>`;
+    }).join("") : `<p class="muted" style="padding:8px 0">Nenhuma despesa com vencimento em ${ymLabel(ym)}.</p>`}
+  </div>
+  ${nav()}`;
+}
+function selForma(v){ return `<select id="f-forma">${FORMAS.map(f=>`<option ${f===v?"selected":""}>${f}</option>`).join("")}</select>`; }
+function selConta(v){
+  const cts=contasDisponiveis();
+  return `<select id="f-conta" onchange="contaNova(this)">${cts.map(c=>`<option ${c===v?"selected":""}>${esc(c)}</option>`).join("")}<option value="__nova">➕ Nova conta…</option></select>`;
+}
+window.contaNova = sel => {
+  if(sel.value!=="__nova") return;
+  const n=prompt("Nome da conta (ex.: Sicredi, Caixa, Nubank do pai):");
+  if(n){ const o=document.createElement("option"); o.textContent=n.trim(); sel.insertBefore(o,sel.lastElementChild); sel.value=n.trim(); }
+  else sel.selectedIndex=0;
+};
+window.togglePg = chk => { $("#pg-campos").style.display = chk.checked ? "block" : "none"; };
+
+window.novaDespesa = () => {
+  openModal(`<h3>Lançar despesa</h3>
+    <label>Casa</label><select id="f-casa">${casas.map(c=>`<option value="${c.id}">${esc(c.nome)}</option>`).join("")}</select>
+    <label>Tipo</label><select id="f-tipo"><option value="agua">💧 Água</option><option value="energia">⚡ Energia</option><option value="reparo">🔧 Reparo</option><option value="outro">📦 Outro</option></select>
+    <label>Descrição (ex.: Água Casa 03, talão junto c/ 04)</label><input id="f-desc">
+    <label>Valor (R$)</label><input id="f-val" type="number" step="0.01" inputmode="decimal">
+    <label>Data de vencimento</label><input id="f-venc" type="date" value="${hoje()}">
+    <label class="row" style="margin-top:14px"><input type="checkbox" id="f-jaPagou" style="width:auto" onchange="togglePg(this)"> já foi paga</label>
+    <div id="pg-campos" style="display:none">
+      <label>Data do pagamento</label><input id="f-pgData" type="date" value="${hoje()}">
+      <label>Forma de pagamento</label>${selForma("Pix")}
+      <label>Conta que pagou</label>${selConta()}
+    </div>
+    <div class="mAct"><button class="btn sec" onclick="closeModal()">Cancelar</button>
+    <button class="btn" onclick="salvarDesp()">Salvar</button></div>`);
+};
+window.salvarDesp = async () => {
+  const val=parseFloat($("#f-val").value); if(!val){ alert("Informe o valor."); return; }
+  const pagou=$("#f-jaPagou").checked;
+  await addDoc(collection(db,"despesas"),{
+    casaId:$("#f-casa").value, tipo:$("#f-tipo").value, descricao:$("#f-desc").value.trim(),
+    valor:val, vencimento:$("#f-venc").value||hoje(),
+    pagamento: pagou ? ($("#f-pgData").value||hoje()) : null,
+    formaPag: pagou ? $("#f-forma").value : "", conta: pagou ? $("#f-conta").value : ""
+  });
+  closeModal();
+};
+window.pagarDesp = id => {
+  const d=despesas.find(x=>x.id===id);
+  openModal(`<h3>Registrar pagamento</h3>
+    <p class="muted">${TIPO_DESP[d.tipo]||d.tipo}${d.descricao?` · ${esc(d.descricao)}`:""} · ${fmt(d.valor)} · vence ${dBr(vencDesp(d))}</p>
+    <label>Data do pagamento</label><input id="f-pgData" type="date" value="${hoje()}">
+    <label>Forma de pagamento</label>${selForma("Pix")}
+    <label>Conta que pagou</label>${selConta(d.conta)}
+    <div class="mAct"><button class="btn sec" onclick="closeModal()">Cancelar</button>
+    <button class="btn" onclick="confPagarDesp('${id}')">Confirmar</button></div>`);
+};
+window.confPagarDesp = async id => {
+  await updateDoc(doc(db,"despesas",id),{pagamento:$("#f-pgData").value||hoje(),formaPag:$("#f-forma").value,conta:$("#f-conta").value});
+  closeModal();
+};
+window.editDesp = id => {
+  const d=despesas.find(x=>x.id===id);
+  openModal(`<h3>Editar despesa</h3>
+    <label>Casa</label><select id="f-casa">${casas.map(c=>`<option value="${c.id}" ${c.id===d.casaId?"selected":""}>${esc(c.nome)}</option>`).join("")}</select>
+    <label>Tipo</label><select id="f-tipo">${Object.entries(TIPO_DESP).map(([k,v])=>`<option value="${k}" ${k===d.tipo?"selected":""}>${v}</option>`).join("")}</select>
+    <label>Descrição</label><input id="f-desc" value="${esc(d.descricao||"")}">
+    <label>Valor (R$)</label><input id="f-val" type="number" step="0.01" value="${d.valor}">
+    <label>Data de vencimento</label><input id="f-venc" type="date" value="${vencDesp(d)}">
+    ${d.pagamento?`
+    <label>Data do pagamento</label><input id="f-pgData" type="date" value="${d.pagamento}">
+    <label>Forma de pagamento</label>${selForma(d.formaPag||"Pix")}
+    <label>Conta que pagou</label>${selConta(d.conta)}
+    <label class="row"><input type="checkbox" id="f-desfazer" style="width:auto"> desfazer pagamento (volta pra "em aberto")</label>`:""}
+    <div class="mAct"><button class="btn sec" onclick="closeModal()">Cancelar</button>
+    <button class="btn" onclick="salvarEditDesp('${id}')">Salvar</button></div>`);
+};
+window.salvarEditDesp = async id => {
+  const d=despesas.find(x=>x.id===id);
+  const val=parseFloat($("#f-val").value); if(!val){ alert("Informe o valor."); return; }
+  const upd={casaId:$("#f-casa").value,tipo:$("#f-tipo").value,descricao:$("#f-desc").value.trim(),valor:val,vencimento:$("#f-venc").value||vencDesp(d)};
+  if(d.pagamento){
+    if($("#f-desfazer")?.checked){ upd.pagamento=null; upd.formaPag=""; upd.conta=""; }
+    else { upd.pagamento=$("#f-pgData").value||d.pagamento; upd.formaPag=$("#f-forma").value; upd.conta=$("#f-conta").value; }
+  }
+  await updateDoc(doc(db,"despesas",id),upd);
+  closeModal();
+};
+window.delDesp = async id => { if(confirm("Excluir esta despesa?")) await deleteDoc(doc(db,"despesas",id)); };
+
+/* ---------- RELATÓRIO ---------- */
+function dadosRelatorio(ym){
+  const ativosNoMes=contratos.filter(c=>contratoNoMes(c,ym));
+  const porCasa={};
+  for(const cs of casas) porCasa[cs.id]={casa:cs,previsto:0,recebido:0,atraso:0,despesa:0,linhas:[],ocup:0,total:0};
+  for(const u of unidades){ if(porCasa[u.casaId]) porCasa[u.casaId].total++; }
+  let previsto=0,recebido=0,atraso=0,despTot=0;
+  for(const c of ativosNoMes){
+    const u=unidades.find(x=>x.id===c.unidadeId); if(!u||!porCasa[u.casaId]) continue;
+    const dev=devidoComp(c,ym), pg=pagoComp(c.id,ym), falta=Math.max(0,dev-pg);
+    const venceu=vencComp(c,ym)<hoje();
+    const st=statusComp(c,ym);
+    const b=porCasa[u.casaId];
+    b.previsto+=dev; b.recebido+=pg; if(venceu) b.atraso+=falta; b.ocup++;
+    b.linhas.push({unidade:u.nome,inquilino:c.nome,dev,pg,falta,st});
+    previsto+=dev; recebido+=pg; if(venceu) atraso+=falta;
+  }
+  const despLista=despesas.filter(d=>ymDe(vencDesp(d))===ym);
+  for(const d of despLista){ if(porCasa[d.casaId]){ porCasa[d.casaId].despesa+=Number(d.valor); } despTot+=Number(d.valor); }
+  return {ym,porCasa:Object.values(porCasa),previsto,recebido,atraso,despTot,liq:recebido-despTot,despLista};
+}
+
+function renderRelatorio(){
+  const ym=mesSel; const r=dadosRelatorio(ym);
+  const totU=unidades.length, ocupadas=r.porCasa.reduce((s,b)=>s+b.ocup,0);
+  app.innerHTML=`
+  <div class="hdr"><div><div class="sub">Prestação de contas</div><h1>Relatório</h1></div></div>
+  <div class="mSel"><button onclick="mudaMes(-1)">‹</button><div class="lbl">${ymLabel(ym)}</div><button onclick="mudaMes(1)">›</button></div>
+  <div class="card">
+    <p class="muted">Gere a prestação de contas de <b>${ymLabel(ym)}</b> para entregar ao proprietário.</p>
+    <div class="row" style="margin-top:12px;flex-wrap:wrap">
+      <button class="btn" onclick="imprimirRelatorio('${ym}')">🖨️ Ver / Imprimir (PDF)</button>
+      <button class="btn sec" onclick="baixarRelatorio('${ym}')">⬇️ Baixar p/ WhatsApp</button>
+    </div>
+    <p class="hint">No "Imprimir", escolha <b>Salvar como PDF</b> no destino para gerar o arquivo. O botão de baixar gera um resumo em texto pronto pra colar/enviar.</p>
+  </div>
+  <div class="kgrid">
+    <div class="kpi"><div class="l">Ocupação</div><div class="v">${totU?Math.round(100*ocupadas/totU):0}%</div><div class="muted">${ocupadas} de ${totU}</div></div>
+    <div class="kpi"><div class="l">Recebido</div><div class="v" style="color:var(--green)">${fmt(r.recebido)}</div><div class="muted">de ${fmt(r.previsto)} previstos</div></div>
+    <div class="kpi"><div class="l">Despesas</div><div class="v" style="color:var(--amber)">${fmt(r.despTot)}</div></div>
+    <div class="kpi"><div class="l">Em atraso</div><div class="v" style="color:${r.atraso>0?'var(--red)':'var(--ink)'}">${fmt(r.atraso)}</div></div>
+    <div class="kpi liq"><div class="l">Resultado (recebido − despesas)</div><div class="v" style="color:${r.liq>=0?'var(--green)':'var(--red)'}">${fmt(r.liq)}</div></div>
+  </div>
+  ${r.porCasa.map(b=>`<div class="card">
+    <div class="spread"><h3 class="disp" style="font-size:15.5px">${esc(b.casa.nome)}</h3><b>${fmt(b.recebido-b.despesa)}</b></div>
+    <p class="muted">ocupadas ${b.ocup}/${b.total} · recebido ${fmt(b.recebido)} · despesas ${fmt(b.despesa)}${b.atraso>0.005?` · <span style="color:var(--red)">atraso ${fmt(b.atraso)}</span>`:""}</p>
+    ${b.linhas.map(l=>`<div class="compRow"><div><b>${esc(l.unidade)}</b> <span class="muted">${esc(l.inquilino)}</span></div>
+      <div class="row">${stTag(l.st)}<b>${fmt(l.pg)}</b></div></div>`).join("")||`<p class="muted" style="padding:6px 0">Sem inquilinos ativos.</p>`}
+  </div>`).join("")}
+  ${nav()}`;
+}
+
+function htmlRelatorio(ym){
+  const r=dadosRelatorio(ym);
+  const totU=unidades.length, ocupadas=r.porCasa.reduce((s,b)=>s+b.ocup,0);
+  const hj=new Date().toLocaleDateString("pt-BR");
+  const stTxt={pago:"Pago",parcial:"Parcial",aberto:"Em aberto",atrasado:"Atrasado"};
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório ${ymLabel(ym)}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font:13px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;color:#22261F;padding:32px;max-width:800px;margin:0 auto}
+    h1{font-size:22px;margin-bottom:2px} .sub{color:#7C8074;font-size:12px;margin-bottom:20px}
+    h2{font-size:15px;margin:22px 0 8px;padding-bottom:5px;border-bottom:2px solid #2E6B46;color:#2E6B46}
+    table{width:100%;border-collapse:collapse;margin-bottom:6px} th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #E5E3D9}
+    th{font-size:11px;text-transform:uppercase;color:#7C8074;letter-spacing:.04em}
+    td.n,th.n{text-align:right} .tot{font-weight:700}
+    .cards{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+    .c{border:1px solid #E5E3D9;border-radius:10px;padding:10px 14px;flex:1;min-width:120px}
+    .c .l{font-size:10px;text-transform:uppercase;color:#7C8074;letter-spacing:.04em} .c .v{font-size:18px;font-weight:700;margin-top:2px}
+    .liq{background:#E2EFE6;border-color:#2E6B46}
+    .foot{margin-top:30px;font-size:11px;color:#7C8074;border-top:1px solid #E5E3D9;padding-top:10px}
+    .g{color:#2E6B46} .a{color:#A26714} .r{color:#B23E2C}
+    @media print{body{padding:12px}.noprint{display:none}}
+  </style></head><body>
+  <h1>Prestação de Contas — Aluguéis</h1>
+  <div class="sub">Competência: ${ymLabel(ym)} · Emitido em ${hj}</div>
+  <div class="cards">
+    <div class="c"><div class="l">Ocupação</div><div class="v">${totU?Math.round(100*ocupadas/totU):0}% <span style="font-size:11px;font-weight:400;color:#7C8074">(${ocupadas}/${totU})</span></div></div>
+    <div class="c"><div class="l">Previsto</div><div class="v">${fmt(r.previsto)}</div></div>
+    <div class="c"><div class="l">Recebido</div><div class="v g">${fmt(r.recebido)}</div></div>
+    <div class="c"><div class="l">Despesas</div><div class="v a">${fmt(r.despTot)}</div></div>
+    <div class="c liq"><div class="l">Resultado líquido</div><div class="v ${r.liq>=0?'g':'r'}">${fmt(r.liq)}</div></div>
+  </div>
+  ${r.porCasa.map(b=>`
+    <h2>${b.casa.nome} — líquido ${fmt(b.recebido-b.despesa)}</h2>
+    <table><thead><tr><th>Kitnet</th><th>Inquilino</th><th class="n">Devido</th><th class="n">Pago</th><th class="n">Falta</th><th>Status</th></tr></thead>
+    <tbody>${b.linhas.map(l=>`<tr><td>${esc(l.unidade)}</td><td>${esc(l.inquilino)}</td><td class="n">${fmt(l.dev)}</td><td class="n">${fmt(l.pg)}</td><td class="n">${l.falta>0.005?fmt(l.falta):"—"}</td><td>${stTxt[l.st]}</td></tr>`).join("")||`<tr><td colspan="6" style="color:#7C8074">Sem inquilinos ativos</td></tr>`}
+    <tr class="tot"><td colspan="2">Subtotal recebido</td><td class="n">${fmt(b.previsto)}</td><td class="n">${fmt(b.recebido)}</td><td class="n">${fmt(b.atraso>0?b.atraso:0)}</td><td></td></tr>
+    </tbody></table>
+    <div style="font-size:12px;color:#7C8074;margin-bottom:4px">Despesas da casa (água/energia/reparos): <b class="a">${fmt(b.despesa)}</b></div>
+  `).join("")}
+  ${r.despLista.length?`<h2>Detalhe das despesas</h2>
+    <table><thead><tr><th>Casa</th><th>Tipo</th><th>Descrição</th><th class="n">Valor</th><th>Situação</th></tr></thead>
+    <tbody>${r.despLista.map(d=>{const cs=casas.find(c=>c.id===d.casaId);return `<tr><td>${esc(cs?.nome||"?")}</td><td>${(TIPO_DESP[d.tipo]||d.tipo).replace(/[^ -~À-ÿ]/g,"").trim()}</td><td>${esc(d.descricao||"—")}</td><td class="n">${fmt(d.valor)}</td><td>${d.pagamento?"Paga":"Em aberto"}</td></tr>`;}).join("")}</tbody></table>`:""}
+  <div class="foot">Relatório gerado pelo sistema de gestão de kitnets · ${hj}</div>
+  <div class="noprint" style="margin-top:20px;text-align:center"><button onclick="window.print()" style="padding:10px 20px;background:#2E6B46;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer">🖨️ Imprimir / Salvar PDF</button></div>
+  </body></html>`;
+}
+window.imprimirRelatorio = ym => {
+  const w=window.open("","_blank");
+  if(!w){ alert("Permita pop-ups para abrir o relatório."); return; }
+  w.document.write(htmlRelatorio(ym)); w.document.close();
+};
+window.baixarRelatorio = ym => {
+  const r=dadosRelatorio(ym);
+  const totU=unidades.length, ocupadas=r.porCasa.reduce((s,b)=>s+b.ocup,0);
+  let t=`*PRESTAÇÃO DE CONTAS — ${ymLabel(ym).toUpperCase()}*\n\n`;
+  t+=`📊 Ocupação: ${totU?Math.round(100*ocupadas/totU):0}% (${ocupadas}/${totU})\n`;
+  t+=`💰 Recebido: ${fmt(r.recebido)} de ${fmt(r.previsto)}\n`;
+  t+=`💸 Despesas: ${fmt(r.despTot)}\n`;
+  if(r.atraso>0.005) t+=`🔴 Em atraso: ${fmt(r.atraso)}\n`;
+  t+=`\n*RESULTADO LÍQUIDO: ${fmt(r.liq)}*\n`;
+  t+=`\n————————————\n`;
+  for(const b of r.porCasa){
+    t+=`\n*${b.casa.nome}* — líquido ${fmt(b.recebido-b.despesa)}\n`;
+    for(const l of b.linhas){
+      const emoji=l.st==="pago"?"✅":l.st==="atrasado"?"🔴":l.st==="parcial"?"🟡":"⬜";
+      t+=`${emoji} ${l.unidade} (${l.inquilino}): ${fmt(l.pg)}${l.falta>0.005?` · falta ${fmt(l.falta)}`:""}\n`;
+    }
+    if(b.despesa>0) t+=`   despesas: ${fmt(b.despesa)}\n`;
+  }
+  t+=`\n_Emitido em ${new Date().toLocaleDateString("pt-BR")}_`;
+  const blob=new Blob([t],{type:"text/plain;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download=`relatorio-kitnets-${ym}.txt`; a.click();
+};
+</script>
+</body>
+</html>
