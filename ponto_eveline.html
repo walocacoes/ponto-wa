@@ -464,10 +464,12 @@ window.onHistEmpChange=function(){
 };
 
 async function renderHistorico(){
+  // Capturar valores ANTES de qualquer operação async
   const empId=IS_GESTAO
     ? document.getElementById('hist-emp-select').value
     : document.getElementById('emp-select').value;
   const month=document.getElementById('hist-month').value;
+  const monthCapturado=month; // garantia contra mudanças durante awaits
   const tbody=document.getElementById('hist-body');
   if(!empId){tbody.innerHTML='<tr><td colspan="8" class="loading">Selecione um funcionário na tela Registrar</td></tr>';return;}
   tbody.innerHTML='<tr><td colspan="8" class="loading">Carregando...</td></tr>';
@@ -478,7 +480,7 @@ async function renderHistorico(){
   let feriadosDoMes=[];
   try{
     const snap=await getDocs(collection(db,'feriados'));
-    snap.forEach(d=>{if(d.id.startsWith(month))feriadosDoMes.push({date:d.id,desc:d.data().descricao||''});});
+    snap.forEach(d=>{if(d.id.startsWith(monthCapturado))feriadosDoMes.push({date:d.id,desc:d.data().descricao||''});});
     feriadosDoMes.sort((a,b)=>a.date.localeCompare(b.date));
   }catch{}
 
@@ -504,8 +506,8 @@ async function renderHistorico(){
       saldoEl.textContent=(saldoMin>0?'+':saldoMin<0?'-':'')+minToHHMM(Math.abs(saldoMin));
       saldoEl.style.color=saldoMin>0?'var(--green)':saldoMin<0?'var(--red)':'var(--text2)';
 
-      // saldo acumulado com tolerância CLT — busca isolada para não afetar histórico
-      const allRec=await getAllMonthRecords('2026');
+      // saldo acumulado — calculado em segundo plano após render da tabela
+      getAllMonthRecords('2026').then(allRec=>{
       const ontem=new Date();ontem.setDate(ontem.getDate()-1);ontem.setHours(23,59,59);
       const limCLT=new Date();limCLT.setMonth(limCLT.getMonth()-5);
       let saldoAcum=0,saldoAntigo=0;
@@ -554,6 +556,7 @@ async function renderHistorico(){
         desc.textContent='Você está em dia com suas horas.';desc.style.color='var(--text2)';
         prazo.style.display='none';
       }
+    }}).catch(()=>{});
     }
   }
 
