@@ -269,6 +269,13 @@ tr:hover td{background:var(--surface2);}
   <div class="section-title">Dashboard</div>
   <div class="section-sub">Resumo — <span id="dash-month-label"></span></div>
   <div class="month-row"><select id="dash-month" onchange="renderDashboard()"></select></div>
+
+  <!-- VISÃO MACRO — acumulado geral -->
+  <div class="card" id="dash-macro" style="margin-bottom:14px;">
+    <div class="card-title">Visão Geral — Acumulado desde jun/2026</div>
+    <div id="dash-macro-content"><div class="loading">Carregando...</div></div>
+  </div>
+
   <div class="stats-grid" id="stats-grid"></div>
 
   <!-- Banco de Horas individual -->
@@ -968,8 +975,65 @@ window.renderDashboard=async function(){
     <div class="stat-card"><div class="stat-label">Banco negativo</div><div class="stat-value ${tN>0?'c-red':'c-green'}">${minToHHMM(tN)}</div><div class="stat-sub">a compensar</div></div>
   `;
 
-  // saldo acumulado
+  // ── VISÃO MACRO — acumulado geral ──
   const todosRegistros = await getAllRecordsDesdeInicio();
+  const ontemMacro=new Date();ontemMacro.setDate(ontemMacro.getDate()-1);ontemMacro.setHours(23,59,59);
+  const limCLT=new Date();limCLT.setMonth(limCLT.getMonth()-5);
+
+  const macroStats = FUNCIONARIOS.map(f=>{
+    const ed=todosRegistros[f.id]||{};
+    let acum=0,antigo=0;
+    Object.keys(ed).sort().forEach(d=>{
+      const dt=new Date(d+'T12:00:00');
+      if(dt>ontemMacro)return;
+      const r=ed[d];
+      if(!r||!r.entrada||!r.saida)return;
+      const s=calcSaldoComTolerancia(calcHoras(r),jornadaDia(d,f.id));
+      acum+=s;
+      if(dt<=limCLT&&s>0)antigo+=s;
+    });
+    return{f,acum:Math.round(acum),antigo:Math.round(antigo)};
+  });
+
+  const totalAcumPos = macroStats.filter(s=>s.acum>0).reduce((a,s)=>a+s.acum,0);
+  const totalAcumNeg = macroStats.filter(s=>s.acum<0).reduce((a,s)=>a+Math.abs(s.acum),0);
+  const comVencimento = macroStats.filter(s=>s.antigo>0);
+
+  document.getElementById('dash-macro-content').innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px;">
+      <div style="background:var(--surface2);border-radius:10px;padding:14px;border:1px solid #22C55E33;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">Total de H. Extra (empresa)</div>
+        <div style="font-size:24px;font-weight:700;color:#22C55E;">${minToHHMM(totalAcumPos)}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">horas a favor dos funcionários</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:10px;padding:14px;border:1px solid #E8302F33;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">Total de H. Devidas (empresa)</div>
+        <div style="font-size:24px;font-weight:700;color:#E8302F;">${minToHHMM(totalAcumNeg)}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">horas a compensar pelos funcionários</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:10px;padding:14px;border:1px solid ${comVencimento.length>0?'#F59E0B33':'var(--border)'};">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">Próximos a vencer (CLT)</div>
+        <div style="font-size:24px;font-weight:700;color:${comVencimento.length>0?'#F59E0B':'var(--text3)'};">${comVencimento.length}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">funcionário(s) com horas perto do prazo</div>
+      </div>
+    </div>
+    <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.6px;">Saldo individual acumulado</div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      ${macroStats.map(({f,acum,antigo})=>{
+        const sc=acum>0?'#22C55E':acum<0?'#E8302F':'var(--text2)';
+        const label=acum>0?'a favor':acum<0?'devendo':'zerado';
+        const ini=f.nome.split(' ').slice(0,2).map(w=>w[0]).join('');
+        return `<div style="display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:8px;padding:10px 14px;">
+          <div style="width:34px;height:34px;border-radius:50%;background:#2d1515;color:#E8302F;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">${ini}</div>
+          <div style="flex:1;font-size:13px;font-weight:500;">${f.nome}</div>
+          <div style="text-align:right;">
+            <div style="font-size:16px;font-weight:700;color:${sc};">${acum===0?'00h00':(acum>0?'+':'')+minToHHMM(Math.abs(acum))}</div>
+            <div style="font-size:10px;color:${sc};opacity:.8;">${label}${antigo>0?' · ⚠️ vence em breve':''}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
 
   document.getElementById('emp-list').innerHTML=stats.map(({f,hT,fa,sM})=>{
     const slMes=(sM>=0?'+':'')+minToHHMM(Math.abs(sM)),scMes=sM>=0?'#22C55E':'#E8302F';

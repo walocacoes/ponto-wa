@@ -135,25 +135,33 @@
 
   <!-- card de saldo do mês -->
   <div id="saldo-card" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:14px;">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);margin-bottom:14px;">Banco de Horas</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
-      <div>
-        <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">H. Trabalhadas (mês)</div>
-        <div id="saldo-trabalhadas" style="font-size:22px;font-weight:700;letter-spacing:-1px;">—</div>
-      </div>
-      <div>
-        <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">H. Previstas (mês)</div>
-        <div id="saldo-previstas" style="font-size:22px;font-weight:700;letter-spacing:-1px;">—</div>
-      </div>
-      <div>
-        <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Saldo do mês</div>
-        <div id="saldo-valor" style="font-size:22px;font-weight:700;letter-spacing:-1px;">—</div>
-      </div>
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px;">⏱ Seu Banco de Horas</div>
+
+    <!-- Saldo acumulado — destaque principal -->
+    <div id="saldo-acum-box" style="border-radius:10px;padding:16px;margin-bottom:16px;text-align:center;">
+      <div id="saldo-acum-titulo" style="font-size:13px;font-weight:600;margin-bottom:6px;"></div>
+      <div id="saldo-acumulado" style="font-size:36px;font-weight:700;letter-spacing:-2px;">—</div>
+      <div id="saldo-acum-desc" style="font-size:12px;margin-top:6px;opacity:0.8;"></div>
+      <div id="saldo-acum-prazo" style="font-size:11px;margin-top:8px;padding:4px 10px;border-radius:6px;display:inline-block;display:none;"></div>
     </div>
+
+    <!-- Detalhes do mês -->
     <div style="border-top:1px solid var(--border);padding-top:14px;">
-      <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">Saldo acumulado (desde jun/2026)</div>
-      <div id="saldo-acumulado" style="font-size:28px;font-weight:700;letter-spacing:-1px;">—</div>
-      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Horas disponíveis para compensação</div>
+      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.6px;">Detalhes do mês selecionado</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+        <div style="background:var(--surface2);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;color:var(--text2);margin-bottom:4px;">Trabalhadas</div>
+          <div id="saldo-trabalhadas" style="font-size:18px;font-weight:700;">—</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;color:var(--text2);margin-bottom:4px;">Previstas</div>
+          <div id="saldo-previstas" style="font-size:18px;font-weight:700;">—</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;color:var(--text2);margin-bottom:4px;">Saldo do mês</div>
+          <div id="saldo-valor" style="font-size:18px;font-weight:700;">—</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -469,34 +477,64 @@ async function renderHistorico(){
       totalPrev+=jornadaDia(date);
     });
     const saldoMin=Math.round((totalTrab-totalPrev)*60);
-    const sc=saldoMin>=0?'var(--green)':'var(--red)';
     const card=document.getElementById('saldo-card');
     if(card){
       card.style.display='block';
       document.getElementById('saldo-trabalhadas').textContent=minToHHMM(Math.round(totalTrab*60));
       document.getElementById('saldo-previstas').textContent=minToHHMM(Math.round(totalPrev*60));
       const saldoEl=document.getElementById('saldo-valor');
-      saldoEl.textContent=(saldoMin>=0?'+':'')+minToHHMM(Math.abs(saldoMin));
-      saldoEl.style.color=sc;
+      saldoEl.textContent=(saldoMin>0?'+':saldoMin<0?'-':'')+minToHHMM(Math.abs(saldoMin));
+      saldoEl.style.color=saldoMin>0?'var(--green)':saldoMin<0?'var(--red)':'var(--text2)';
 
-      // saldo acumulado — só dias com registro até ontem
+      // saldo acumulado com tolerância CLT
       const allRec=await getAllMonthRecords('');
       const ontem=new Date();ontem.setDate(ontem.getDate()-1);ontem.setHours(23,59,59);
-      let saldoAcum=0;
+      const limCLT=new Date();limCLT.setMonth(limCLT.getMonth()-5);
+      let saldoAcum=0,saldoAntigo=0;
       const empData=allRec[empId]||{};
       Object.keys(empData).sort().forEach(d=>{
         const dt=new Date(d+'T12:00:00');
         if(dt>ontem)return;
         const r=empData[d];
-        if(!r||!r.entrada)return;
-        saldoAcum+=(calcHoras(r)-jornadaDia(d))*60;
+        if(!r||!r.entrada||!r.saida)return;
+        const s=typeof calcSaldoComTolerancia==='function'
+          ?calcSaldoComTolerancia(calcHoras(r),jornadaDia(d))
+          :Math.round((calcHoras(r)-jornadaDia(d))*60);
+        saldoAcum+=s;
+        if(dt<=limCLT&&s>0)saldoAntigo+=s;
       });
       saldoAcum=Math.round(saldoAcum);
-      const scAcum=saldoAcum>=0?'var(--green)':'var(--red)';
+
+      const box=document.getElementById('saldo-acum-box');
+      const titulo=document.getElementById('saldo-acum-titulo');
       const acumEl=document.getElementById('saldo-acumulado');
-      if(acumEl){
-        acumEl.textContent=(saldoAcum>=0?'+':'')+minToHHMM(Math.abs(Math.round(saldoAcum)));
-        acumEl.style.color=scAcum;
+      const desc=document.getElementById('saldo-acum-desc');
+      const prazo=document.getElementById('saldo-acum-prazo');
+      if(!box||!acumEl)return;
+
+      if(saldoAcum>0){
+        box.style.background='#16311f';box.style.border='1px solid #22C55E44';
+        titulo.textContent='✅ Você tem horas a seu favor';titulo.style.color='#22C55E';
+        acumEl.textContent='+'+minToHHMM(saldoAcum);acumEl.style.color='#22C55E';
+        desc.textContent='Horas extras acumuladas desde jun/2026. Podem ser usadas para sair mais cedo ou chegar mais tarde em dia combinado com a gestão.';
+        desc.style.color='#22C55E';
+        if(saldoAntigo>0){
+          prazo.style.display='inline-block';
+          prazo.style.background='#2d2310';prazo.style.color='#F59E0B';
+          prazo.textContent='⚠️ '+minToHHMM(saldoAntigo)+' vencem em breve — converse com a gestão';
+        } else { prazo.style.display='none'; }
+      } else if(saldoAcum<0){
+        box.style.background='#2d1515';box.style.border='1px solid #E8302F44';
+        titulo.textContent='⚠️ Você está devendo horas';titulo.style.color='#E8302F';
+        acumEl.textContent=minToHHMM(Math.abs(saldoAcum));acumEl.style.color='#E8302F';
+        desc.textContent='Você trabalhou menos do que o previsto no total. Essas horas precisam ser compensadas.';
+        desc.style.color='#E8302F';prazo.style.display='none';
+      } else {
+        box.style.background='var(--surface2)';box.style.border='1px solid var(--border)';
+        titulo.textContent='✓ Banco de horas zerado';titulo.style.color='var(--text2)';
+        acumEl.textContent='00h00';acumEl.style.color='var(--text2)';
+        desc.textContent='Você está em dia com suas horas.';desc.style.color='var(--text2)';
+        prazo.style.display='none';
       }
     }
   }
