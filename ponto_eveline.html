@@ -504,8 +504,8 @@ async function renderHistorico(){
       saldoEl.textContent=(saldoMin>0?'+':saldoMin<0?'-':'')+minToHHMM(Math.abs(saldoMin));
       saldoEl.style.color=saldoMin>0?'var(--green)':saldoMin<0?'var(--red)':'var(--text2)';
 
-      // saldo acumulado com tolerância CLT
-      const allRec=await getAllMonthRecords('');
+      // saldo acumulado com tolerância CLT — busca isolada para não afetar histórico
+      const allRec=await getAllMonthRecords('2026');
       const ontem=new Date();ontem.setDate(ontem.getDate()-1);ontem.setHours(23,59,59);
       const limCLT=new Date();limCLT.setMonth(limCLT.getMonth()-5);
       let saldoAcum=0,saldoAntigo=0;
