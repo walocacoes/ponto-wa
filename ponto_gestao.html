@@ -276,13 +276,7 @@ tr:hover td{background:var(--surface2);}
     <div id="dash-macro-content"><div class="loading">Carregando...</div></div>
   </div>
 
-  <div class="stats-grid" id="stats-grid"></div>
-
-  <!-- Banco de Horas individual -->
-  <div class="card">
-    <div class="card-title">Banco de Horas — Saldo Individual</div>
-    <div id="emp-list"></div>
-  </div>
+  <div class="stats-grid" id="stats-grid" style="display:none;"></div>
 
   <!-- Gráfico de horas trabalhadas -->
   <div class="card">
@@ -923,7 +917,7 @@ function diasUteisDoMes(month, empId){
 window.renderDashboard=async function(){
   const month=document.getElementById('dash-month').value;
   document.getElementById('dash-month-label').textContent=monthLabel(month);
-  document.getElementById('emp-list').innerHTML='<div class="loading">Carregando...</div>';
+  document.getElementById('dash-macro-content').innerHTML='<div class="loading">Carregando...</div>';
   const allData=await getAllMonthRecords(month);
   dashCache.allData=allData; dashCache.month=month;
 
@@ -975,14 +969,23 @@ window.renderDashboard=async function(){
     <div class="stat-card"><div class="stat-label">Banco negativo</div><div class="stat-value ${tN>0?'c-red':'c-green'}">${minToHHMM(tN)}</div><div class="stat-sub">a compensar</div></div>
   `;
 
-  // ── VISÃO MACRO — acumulado geral ──
+  // ── VISÃO MACRO — cards por funcionário ──
   const todosRegistros = await getAllRecordsDesdeInicio();
   const ontemMacro=new Date();ontemMacro.setDate(ontemMacro.getDate()-1);ontemMacro.setHours(23,59,59);
   const limCLT=new Date();limCLT.setMonth(limCLT.getMonth()-5);
+  const monthDash=document.getElementById('dash-month').value;
+
+  // meses disponíveis (últimos 3 até o mês vigente)
+  const mesesLabels=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const hojeD=new Date();
+  const ultimos3=[];
+  for(let i=2;i>=0;i--){const d=new Date(hojeD.getFullYear(),hojeD.getMonth()-i,1);ultimos3.push({key:d.getFullYear()+'-'+pad(d.getMonth()+1),label:mesesLabels[d.getMonth()]});}
 
   const macroStats = FUNCIONARIOS.map(f=>{
     const ed=todosRegistros[f.id]||{};
-    let acum=0,antigo=0;
+    let acum=0,antigo=0,faltasMes=0,hTMes=0,hPrevMes=0;
+    const saldoPorMes={};
+
     Object.keys(ed).sort().forEach(d=>{
       const dt=new Date(d+'T12:00:00');
       if(dt>ontemMacro)return;
@@ -991,8 +994,17 @@ window.renderDashboard=async function(){
       const s=calcSaldoComTolerancia(calcHoras(r),jornadaDia(d,f.id));
       acum+=s;
       if(dt<=limCLT&&s>0)antigo+=s;
+      const mk=d.slice(0,7);
+      saldoPorMes[mk]=(saldoPorMes[mk]||0)+s;
+      // dados do mês selecionado
+      if(mk===monthDash){hTMes+=calcHoras(r);hPrevMes+=jornadaDia(d,f.id);}
     });
-    return{f,acum:Math.round(acum),antigo:Math.round(antigo)};
+
+    // faltas do mês selecionado
+    const diasMes=diasUteisDoMes(monthDash,f.id);
+    diasMes.forEach(d=>{const dt=new Date(d+'T12:00:00');if(dt>ontemMacro)return;const r=ed[d];if(!r||!r.entrada)faltasMes++;});
+
+    return{f,acum:Math.round(acum),antigo:Math.round(antigo),saldoPorMes,faltasMes,hTMes,hPrevMes};
   });
 
   const totalAcumPos = macroStats.filter(s=>s.acum>0).reduce((a,s)=>a+s.acum,0);
@@ -1000,73 +1012,74 @@ window.renderDashboard=async function(){
   const comVencimento = macroStats.filter(s=>s.antigo>0);
 
   document.getElementById('dash-macro-content').innerHTML=`
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px;">
-      <div style="background:var(--surface2);border-radius:10px;padding:14px;border:1px solid #22C55E33;">
-        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">Total de H. Extra (empresa)</div>
-        <div style="font-size:24px;font-weight:700;color:#22C55E;">${minToHHMM(totalAcumPos)}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">horas a favor dos funcionários</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;">
+      <div style="background:var(--surface2);border-radius:10px;padding:14px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">A favor (empresa)</div>
+        <div style="font-size:22px;font-weight:700;color:#22C55E;">+${minToHHMM(totalAcumPos)}</div>
       </div>
-      <div style="background:var(--surface2);border-radius:10px;padding:14px;border:1px solid #E8302F33;">
-        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">Total de H. Devidas (empresa)</div>
-        <div style="font-size:24px;font-weight:700;color:#E8302F;">${minToHHMM(totalAcumNeg)}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">horas a compensar pelos funcionários</div>
+      <div style="background:var(--surface2);border-radius:10px;padding:14px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">Devendo (empresa)</div>
+        <div style="font-size:22px;font-weight:700;color:#E8302F;">${minToHHMM(totalAcumNeg)}</div>
       </div>
-      <div style="background:var(--surface2);border-radius:10px;padding:14px;border:1px solid ${comVencimento.length>0?'#F59E0B33':'var(--border)'};">
-        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">Próximos a vencer (CLT)</div>
-        <div style="font-size:24px;font-weight:700;color:${comVencimento.length>0?'#F59E0B':'var(--text3)'};">${comVencimento.length}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">funcionário(s) com horas perto do prazo</div>
+      <div style="background:var(--surface2);border-radius:10px;padding:14px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">A vencer (CLT)</div>
+        <div style="font-size:22px;font-weight:700;color:${comVencimento.length>0?'#F59E0B':'var(--text3)'};">${comVencimento.length}</div>
       </div>
     </div>
-    <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.6px;">Saldo individual acumulado</div>
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      ${macroStats.map(({f,acum,antigo})=>{
-        const sc=acum>0?'#22C55E':acum<0?'#E8302F':'var(--text2)';
-        const label=acum>0?'a favor':acum<0?'devendo':'zerado';
+
+    <div style="font-size:11px;color:var(--text2);margin-bottom:12px;">Situação de cada funcionário</div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      ${macroStats.map(({f,acum,antigo,saldoPorMes,faltasMes,hTMes,hPrevMes})=>{
+        const sc=acum>0?'#22C55E':acum<0?'#E8302F':'var(--text3)';
+        const statusTxt=acum>0?(antigo>0?'Tem horas a favor · vence em breve':'Tem horas a favor'):acum<0?'Está devendo horas':'Em dia';
+        const statusColor=acum>0?(antigo>0?'#F59E0B':'#22C55E'):acum<0?'#E8302F':'var(--text2)';
         const ini=f.nome.split(' ').slice(0,2).map(w=>w[0]).join('');
-        return `<div style="display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:8px;padding:10px 14px;">
-          <div style="width:34px;height:34px;border-radius:50%;background:#2d1515;color:#E8302F;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">${ini}</div>
-          <div style="flex:1;font-size:13px;font-weight:500;">${f.nome}</div>
-          <div style="text-align:right;">
-            <div style="font-size:16px;font-weight:700;color:${sc};">${acum===0?'00h00':(acum>0?'+':'')+minToHHMM(Math.abs(acum))}</div>
-            <div style="font-size:10px;color:${sc};opacity:.8;">${label}${antigo>0?' · ⚠️ vence em breve':''}</div>
+        const acumTxt=acum===0?'00h00':(acum>0?'+':'')+minToHHMM(Math.abs(acum));
+
+        // mini histórico mensal
+        const miniMeses=ultimos3.map(m=>{
+          const s=Math.round(saldoPorMes[m.key]||0);
+          const cor=s>0?'#22C55E':s<0?'#E8302F':'var(--text3)';
+          const txt=s===0?'00h00':(s>0?'+':'')+minToHHMM(Math.abs(s));
+          return `<div style="flex:1;text-align:center;background:var(--bg);border-radius:6px;padding:6px 4px;">
+            <div style="font-size:10px;color:var(--text3);">${m.label}</div>
+            <div style="font-size:12px;font-weight:600;color:${cor};">${txt}</div>
+          </div>`;
+        }).join('');
+
+        // barra de progresso do mês
+        const pctMes=hPrevMes>0?Math.min(100,Math.round((hTMes/hPrevMes)*100)):0;
+        const barColor=pctMes>=95?'#22C55E':pctMes>=80?'#F59E0B':'#E8302F';
+
+        const alertaBox=antigo>0
+          ? `<div style="background:#2d2310;border-radius:6px;padding:6px 10px;font-size:11px;color:#F59E0B;margin-top:10px;">⏰ ${minToHHMM(antigo)} vencem em breve — combine a compensação</div>`
+          : '';
+
+        return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+            <div style="width:40px;height:40px;border-radius:50%;background:#2d1515;color:#E8302F;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${ini}</div>
+            <div style="flex:1;">
+              <div style="font-size:14px;font-weight:600;">${f.nome}</div>
+              <div style="font-size:12px;color:${statusColor};">${statusTxt}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:20px;font-weight:700;color:${sc};">${acumTxt}</div>
+              <div style="font-size:11px;color:var(--text3);">acumulado</div>
+            </div>
           </div>
+          <div style="display:flex;gap:6px;margin-bottom:10px;">${miniMeses}</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="flex:1;background:var(--border);border-radius:4px;height:5px;overflow:hidden;">
+              <div style="background:${barColor};height:100%;width:${pctMes}%;border-radius:4px;transition:width .5s;"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text2);white-space:nowrap;">${minToHHMM(Math.round(hTMes*60))} / ${minToHHMM(Math.round(hPrevMes*60))} · ${faltasMes===0?'sem faltas':faltasMes+' falta'+(faltasMes>1?'s':'')}</div>
+          </div>
+          ${alertaBox}
         </div>`;
       }).join('')}
     </div>
   `;
-
-  document.getElementById('emp-list').innerHTML=stats.map(({f,hT,fa,sM})=>{
-    const slMes=(sM>=0?'+':'')+minToHHMM(Math.abs(sM)),scMes=sM>=0?'#22C55E':'#E8302F';
-    const pct=Math.min(100,Math.round((hT/(22*8))*100));
-    const saldoAcum = calcSaldoAcumulado(f.id, todosRegistros);
-    const scAcum = saldoAcum>=0?'#22C55E':'#E8302F';
-    const slAcum = (saldoAcum>=0?'+':'')+minToHHMM(Math.abs(saldoAcum));
-    const alertaClt = alertaCLT(f.id, todosRegistros);
-    const alertaHtml = alertaClt
-      ? `<div style="display:flex;align-items:center;gap:6px;margin-top:6px;background:#2d2310;border:0.5px solid #F59E0B44;border-radius:6px;padding:5px 10px;width:fit-content;">
-           <span style="font-size:13px;color:#F59E0B;">⏰</span>
-           <span style="font-size:11px;color:#F59E0B;font-weight:500;">${minToHHMM(alertaClt.horas)} vencem em ${alertaClt.vencimento} — use antes do prazo (CLT 6 meses)</span>
-         </div>`
-      : '';
-    return `<div class="emp-row" style="flex-direction:column;align-items:stretch;gap:8px;">
-      <div style="display:flex;align-items:center;gap:12px;">
-        <div class="emp-av">${initials(f.nome)}</div>
-        <div style="flex:1">
-          <div class="emp-name">${f.nome}</div>
-          <div class="emp-sub" style="color:${fa>0?'#E8302F':'#A0A0A0'}">${fa===0?'✓ Sem faltas':'⚠️ '+fa+' falta'+(fa>1?'s':'')}</div>
-          ${alertaHtml}
-        </div>
-        <div class="emp-right">
-          <div class="emp-hours">${minToHHMM(Math.round(hT*60))}</div>
-          <div style="font-size:11px;color:${scMes};margin-top:2px;font-weight:600;">mês: ${slMes}</div>
-          <div style="font-size:13px;color:${scAcum};margin-top:4px;font-weight:700;">acumulado: ${slAcum}</div>
-        </div>
-      </div>
-      <div style="background:var(--border);border-radius:4px;height:4px;overflow:hidden;">
-        <div style="background:${scMes};height:100%;width:${pct}%;border-radius:4px;transition:width .5s;"></div>
-      </div>
-    </div>`;
-  }).join('');
 
   // Gráfico
   renderGrafico(stats);
