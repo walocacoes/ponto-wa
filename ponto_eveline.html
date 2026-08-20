@@ -480,7 +480,7 @@ async function renderHistorico(){
   let feriadosDoMes=[];
   try{
     const snap=await getDocs(collection(db,'feriados'));
-    snap.forEach(d=>{if(d.id.startsWith(monthCapturado))feriadosDoMes.push({date:d.id,desc:d.data().descricao||''});});
+    snap.forEach(d=>{if(d.id.startsWith(monthCapturado)){const dd=d.data();feriadosDoMes.push({date:d.id,desc:dd.descricao||'',tipo:dd.tipo||'feriado'});}});
     feriadosDoMes.sort((a,b)=>a.date.localeCompare(b.date));
   }catch{}
 
@@ -507,7 +507,11 @@ async function renderHistorico(){
       saldoEl.style.color=saldoMin>0?'var(--green)':saldoMin<0?'var(--red)':'var(--text2)';
 
       // saldo acumulado — calculado em segundo plano após render da tabela
-      getAllMonthRecords('2026').then(allRec=>{
+      // buscar folgas a compensar
+      getDocs(collection(db,'feriados')).then(async ferSnap=>{
+       const folgasComp=new Set();
+       ferSnap.forEach(d=>{if(d.data().tipo==='compensar')folgasComp.add(d.id);});
+       const allRec=await getAllMonthRecords('2026');
       const ontem=new Date();ontem.setDate(ontem.getDate()-1);ontem.setHours(23,59,59);
       const limCLT=new Date();limCLT.setMonth(limCLT.getMonth()-5);
       let saldoAcum=0,saldoAntigo=0;
@@ -522,6 +526,14 @@ async function renderHistorico(){
           :Math.round((calcHoras(r)-jornadaDia(d))*60);
         saldoAcum+=s;
         if(dt<=limCLT&&s>0)saldoAntigo+=s;
+      });
+      // descontar folgas a compensar
+      folgasComp.forEach(fd=>{
+        const dt=new Date(fd+'T12:00:00');
+        if(dt>ontem)return;
+        const w=dt.getDay();
+        if(w===0||w===6)return; // fim de semana não desconta (loja fechada de qualquer forma)
+        saldoAcum-=jornadaDia(fd)*60;
       });
       saldoAcum=Math.round(saldoAcum);
 
@@ -568,12 +580,15 @@ async function renderHistorico(){
     todasLinhas.push({date, tipo:'normal', rec:records[date]});
   });
   feriadosDoMes.forEach(f=>{
-    todasLinhas.push({date:f.date, tipo:'feriado', desc:f.desc});
+    todasLinhas.push({date:f.date, tipo:'feriado', desc:f.desc, ferTipo:f.tipo});
   });
   todasLinhas.sort((a,b)=>a.date.localeCompare(b.date));
 
-  tbody.innerHTML=todasLinhas.map(({date,tipo,rec,desc})=>{
+  tbody.innerHTML=todasLinhas.map(({date,tipo,rec,desc,ferTipo})=>{
     if(tipo==='feriado'){
+      if(ferTipo==='compensar'){
+        return '<tr style="background:#2d2310 !important;"><td>'+formatDate(date)+'</td><td colspan="5" style="color:#F59E0B;font-style:italic;">⏰ Folga a compensar — '+desc+'</td><td>—</td><td><span class="badge" style="background:#2d2310;color:#F59E0B;border:1px solid #F59E0B44;">A compensar</span></td></tr>';
+      }
       return '<tr style="background:#1a2535 !important;"><td>'+formatDate(date)+'</td><td colspan="5" style="color:#60a5fa;font-style:italic;">🎉 Feriado — '+desc+'</td><td>—</td><td><span class="badge" style="background:#1a2535;color:#60a5fa;border:1px solid #60a5fa44;">Feriado</span></td></tr>';
     }
     const horas=calcHoras(rec),saldo=horas-jornadaDia(date);
