@@ -664,16 +664,20 @@ window.renderHistorico=async function(){
       const isSab=new Date(date+'T12:00:00').getDay()===6;
       const isDom=new Date(date+'T12:00:00').getDay()===0;
       const isMeioPeriodoFunc = f.id==='F06'; // Eveline: só entrada e saída
+      const isFolgaComp = folgasCompensarCache.has(date);
       const complete=(isSab||isDom||isMeioPeriodoFunc)?rec.entrada&&rec.saida:rec.entrada&&rec.saida_almoco&&rec.retorno_almoco&&rec.saida;
       let statusStr='';
       if(rec._compensacao)statusStr='Compensação';
+      else if(isFolgaComp&&!rec.entrada)statusStr='FolgaCompensar';
       else if(!rec.entrada)statusStr='Falta';
       else if(!complete)statusStr='Incompleto';
       else statusStr='OK';
       if(rec._editado&&!rec._compensacao)statusStr='Editado';
       if(statusFilter&&statusStr!==statusFilter)return;
       if(dataFilter&&date!==dataFilter)return;
-      histCache.push({date,f,rec,horas,saldo,statusStr});
+      // saldo da folga a compensar é negativo (jornada do dia)
+      const saldoFolga = (isFolgaComp&&!rec.entrada)?-jornadaDia(date,f.id):saldo;
+      histCache.push({date,f,rec,horas,saldo:saldoFolga,statusStr});
     });
 
     // feriados — aparecem uma vez por funcionário
@@ -696,6 +700,7 @@ window.renderHistorico=async function(){
       'Editado':'<span class="badge bg-orange">✏️ Editado</span>',
       'Feriado':'<span class="badge bg-blue">🎉 Feriado</span>',
       'Compensação':'<span class="badge bg-blue">⏱ Compensação</span>',
+      'FolgaCompensar':'<span class="badge" style="background:#2d2310;color:#F59E0B;border:1px solid #F59E0B44;">⏰ A compensar</span>',
     }[statusStr]||'';
     const auditoria=rec._editado
       ? `<span style="font-size:10px;color:var(--text3);">${rec._editado_por||'gestão'}<br>${rec._editado_em||''}</span>`
@@ -949,8 +954,10 @@ window.renderDashboard=async function(){
     todosUteis.forEach(d=>{
       const dt=new Date(d+'T12:00:00');
       const rec=ed[d];
+      const isFolgaComp=folgasCompensarCache.has(d);
       if(!rec||!rec.entrada){
-        if(dt<=ontem) fa++; // só conta falta se o dia já passou
+        if(dt<=ontem && !isFolgaComp) fa++; // folga a compensar não é falta
+        if(dt<=ontem && isFolgaComp) sM-=jornadaDia(d,f.id)*60; // desconta a folga do saldo
         return;
       }
       if(dt>ontem) return; // ignora hoje se ainda não terminou
@@ -958,7 +965,7 @@ window.renderDashboard=async function(){
       tR++;
       const h=calcHoras(rec);
       hT+=h;
-      sM+=(h-jornadaDia(d))*60;
+      sM+=(h-jornadaDia(d,f.id))*60;
     });
 
     // domingos com registro completo
