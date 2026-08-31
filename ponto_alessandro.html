@@ -515,7 +515,7 @@ async function renderHistorico(){
        ferSnap.forEach(d=>{if(d.data().tipo==='compensar')folgasComp.add(d.id);});
        const allRec=await getAllMonthRecords('2026');
       const ontem=new Date();ontem.setDate(ontem.getDate()-1);ontem.setHours(23,59,59);
-      const limCLT=new Date();limCLT.setMonth(limCLT.getMonth()-5);
+      const limCLT=new Date();limCLT.setDate(limCLT.getDate()-45);
       let saldoAcum=0,saldoAntigo=0;
       const empData=allRec[empId]||{};
       Object.keys(empData).sort().forEach(d=>{
@@ -555,7 +555,7 @@ async function renderHistorico(){
         if(saldoAntigo>0){
           prazo.style.display='inline-block';
           prazo.style.background='#2d2310';prazo.style.color='#F59E0B';
-          prazo.textContent='⚠️ '+minToHHMM(saldoAntigo)+' vencem em breve — converse com a gestão';
+          prazo.textContent='⚠️ '+minToHHMM(saldoAntigo)+' próximas do limite de 60 dias — converse com a gestão';
         } else { prazo.style.display='none'; }
       } else if(saldoAcum<0){
         box.style.background='#2d1515';box.style.border='1px solid #E8302F44';

@@ -943,12 +943,14 @@ function calcSaldoAcumulado(empId, todosRegistros){
   return Math.round(saldoMin);
 }
 
-// Alerta CLT: retorna {horas, vencimento} se houver saldo positivo com mais de 5 meses
+// Alerta banco de horas: retorna {horas, vencimento} se houver saldo positivo com mais de 45 dias
+// (avisa antes dos 60 dias para dar tempo de compensar)
 function alertaCLT(empId, todosRegistros){
   const ed = todosRegistros[empId] || {};
   const hoje = new Date();
+  // limite: registros com mais de 45 dias (aviso antecipado dos 60)
   const limite = new Date(hoje);
-  limite.setMonth(limite.getMonth()-5);
+  limite.setDate(limite.getDate()-45);
 
   let saldoAntigo = 0;
   let dataAntigaMais = null;
@@ -959,17 +961,17 @@ function alertaCLT(empId, todosRegistros){
     const rec = ed[ds];
     if(!rec||!rec.entrada) return;
     const h = calcHoras(rec);
-    saldoAntigo += calcSaldoComTolerancia(h, jornadaDia(ds));
-    if(!dataAntigaMais) dataAntigaMais = ds;
+    const s = calcSaldoComTolerancia(h, jornadaDia(ds,empId));
+    saldoAntigo += s;
+    if(s>0 && !dataAntigaMais) dataAntigaMais = ds;
   });
 
   if(saldoAntigo <= 0 || !dataAntigaMais) return null;
 
-  // calcular mês de vencimento (6 meses após o registro mais antigo)
+  // vencimento = 60 dias após a hora extra mais antiga
   const dtAntiga = new Date(dataAntigaMais+'T12:00:00');
-  dtAntiga.setMonth(dtAntiga.getMonth()+6);
-  const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-  const vencimento = meses[dtAntiga.getMonth()]+'/'+dtAntiga.getFullYear();
+  dtAntiga.setDate(dtAntiga.getDate()+60);
+  const vencimento = pad(dtAntiga.getDate())+'/'+pad(dtAntiga.getMonth()+1)+'/'+dtAntiga.getFullYear();
 
   return { horas: Math.round(saldoAntigo), vencimento };
 }
@@ -1069,7 +1071,7 @@ window.renderDashboard=async function(){
   // ── VISÃO MACRO — cards por funcionário ──
   const todosRegistros = await getAllRecordsDesdeInicio();
   const ontemMacro=new Date();ontemMacro.setDate(ontemMacro.getDate()-1);ontemMacro.setHours(23,59,59);
-  const limCLT=new Date();limCLT.setMonth(limCLT.getMonth()-5);
+  const limCLT=new Date();limCLT.setDate(limCLT.getDate()-45);
   const monthDash=document.getElementById('dash-month').value;
 
   // meses disponíveis (últimos 3 até o mês vigente)
@@ -1162,7 +1164,7 @@ window.renderDashboard=async function(){
         const barColor=pctMes>=95?'#22C55E':pctMes>=80?'#F59E0B':'#E8302F';
 
         const alertaBox=antigo>0
-          ? `<div style="background:#2d2310;border-radius:6px;padding:6px 10px;font-size:11px;color:#F59E0B;margin-top:10px;">⏰ ${minToHHMM(antigo)} vencem em breve — combine a compensação</div>`
+          ? `<div style="background:#2d2310;border-radius:6px;padding:6px 10px;font-size:11px;color:#F59E0B;margin-top:10px;">⏰ ${minToHHMM(antigo)} próximas do limite de 60 dias — combine a compensação</div>`
           : '';
 
         return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;">
@@ -1466,9 +1468,41 @@ function buildRows(empId, allData, month){
     linhas.sort((x,y)=>x[0].localeCompare(y[0]));
 
     const saldoTotal=totalTrab-totalPrev;
+
+    // retrospectiva dos últimos 60 dias — saldo por mês
+    const hoje60=new Date();
+    const ini60=new Date();ini60.setDate(ini60.getDate()-60);
+    const ontem60=new Date();ontem60.setDate(ontem60.getDate()-1);ontem60.setHours(23,59,59);
+    const saldoPorMes60={};
+    let saldoAcum60=0;
+    // usar allDataCompleto se disponível (todos os meses), senão o allData do mês
+    const fonte=(window._allDataCompleto&&window._allDataCompleto[f.id])||ed;
+    Object.keys(fonte).sort().forEach(d=>{
+      const dt=new Date(d+'T12:00:00');
+      if(dt<ini60||dt>ontem60)return;
+      const r=fonte[d];
+      if(!r||!r.entrada||!r.saida)return;
+      const s=calcSaldoComTolerancia(calcHoras(r),jornadaDia(d,f.id));
+      saldoAcum60+=s;
+      const mk=d.slice(0,7);
+      saldoPorMes60[mk]=(saldoPorMes60[mk]||0)+s;
+    });
+    // descontar folgas a compensar dos últimos 60 dias
+    folgasCompensarCache.forEach(ds=>{
+      const dt=new Date(ds+'T12:00:00');
+      if(dt<ini60||dt>ontem60)return;
+      const w=dt.getDay();if(w===0||w===6)return;
+      const inicioStr=(INICIO_FUNC&&INICIO_FUNC[f.id])||INICIO_SISTEMA;
+      if(ds<inicioStr)return;
+      const jd=jornadaDia(ds,f.id)*60;
+      saldoAcum60-=jd;
+      const mk=ds.slice(0,7);
+      saldoPorMes60[mk]=(saldoPorMes60[mk]||0)-jd;
+    });
+
     resultado.push({
       f, linhas,
-      resumo:{totalTrab,totalPrev,saldoTotal,totalFaltas,totalEditados}
+      resumo:{totalTrab,totalPrev,saldoTotal,totalFaltas,totalEditados,saldoPorMes60,saldoAcum60:Math.round(saldoAcum60)}
     });
   });
 
@@ -1567,6 +1601,44 @@ function gerarPDF(resultado, titulo, subtitulo){
     doc.setTextColor(80,80,80);
     doc.text('Faltas: '+resumo.totalFaltas, 190, finalY+13);
     doc.text('Registros editados: '+resumo.totalEditados, 220, finalY+13);
+
+    // retrospectiva dos últimos 60 dias (banco de horas)
+    const retY=finalY+26;
+    doc.setFillColor(250,247,238);
+    doc.rect(10,retY,277,26,'F');
+    doc.setDrawColor(230,200,140);
+    doc.rect(10,retY,277,26,'S');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8);
+    doc.setTextColor(150,100,0);
+    doc.text('BANCO DE HORAS — ÚLTIMOS 60 DIAS (prazo de compensação)',14,retY+6);
+    doc.setFont('helvetica','normal');
+    doc.setTextColor(80,80,80);
+
+    // meses da retrospectiva
+    const mesesLbl=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    const mesesKeys=Object.keys(resumo.saldoPorMes60).sort();
+    let xPos=14;
+    if(mesesKeys.length===0){
+      doc.text('Sem movimentação nos últimos 60 dias.',14,retY+15);
+    } else {
+      mesesKeys.forEach(mk=>{
+        const [yy,mm]=mk.split('-');
+        const s=Math.round(resumo.saldoPorMes60[mk]);
+        const cor=s>0?[22,120,60]:s<0?[196,30,32]:[120,120,120];
+        doc.setFont('helvetica','bold');doc.setTextColor(80,80,80);
+        doc.text(mesesLbl[parseInt(mm)-1]+'/'+yy,xPos,retY+14);
+        doc.setFont('helvetica','normal');doc.setTextColor(...cor);
+        doc.text((s>0?'+':s<0?'-':'')+minToHHMM(Math.abs(s)),xPos,retY+20);
+        xPos+=32;
+      });
+    }
+    // saldo acumulado dos 60 dias em destaque à direita
+    const scAcum=resumo.saldoAcum60>0?[22,120,60]:resumo.saldoAcum60<0?[196,30,32]:[120,120,120];
+    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...scAcum);
+    const acumTxt=(resumo.saldoAcum60>0?'+':resumo.saldoAcum60<0?'-':'')+minToHHMM(Math.abs(resumo.saldoAcum60));
+    const statusAcum=resumo.saldoAcum60>0?'a compensar (a favor do func.)':resumo.saldoAcum60<0?'a compensar (func. deve)':'em dia';
+    doc.text('Saldo 60 dias: '+acumTxt+'  ('+statusAcum+')',287-14,retY+16,{align:'right'});
   });
 
   // rodapé em todas as páginas
@@ -1587,6 +1659,7 @@ window.exportarPDFTodos=async function(){
   const month=document.getElementById('dash-month').value;
   showToast('Gerando PDF...','success');
   const allData=await getAllMonthRecords(month);
+  window._allDataCompleto=await getAllRecordsDesdeInicio();
   const resultado=buildRows('',allData,month);
   gerarPDF(resultado,'Ponto '+monthLabel(month)+' — Todos','WA Locações & Eventos');
 };
@@ -1598,6 +1671,7 @@ window.exportarPDFFuncionario=async function(){
   const f=FUNCIONARIOS.find(f=>f.id===empId);
   showToast('Gerando PDF...','success');
   const allData=await getAllMonthRecords(month);
+  window._allDataCompleto=await getAllRecordsDesdeInicio();
   const resultado=buildRows(empId,allData,month);
   gerarPDF(resultado,'Ponto '+monthLabel(month)+' — '+f.nome.split(' ')[0],f.nome);
 };
@@ -1607,6 +1681,7 @@ window.exportarPDFHistorico=async function(){
   const empFilter=document.getElementById('hist-emp-select').value;
   showToast('Gerando PDF...','success');
   const allData=await getAllMonthRecords(month);
+  window._allDataCompleto=await getAllRecordsDesdeInicio();
   const resultado=buildRows(empFilter||'',allData,month);
   if(!resultado.length){showToast('Nenhum dado para exportar','error');return;}
   gerarPDF(resultado,'Histórico '+monthLabel(month),'WA Locações & Eventos');
