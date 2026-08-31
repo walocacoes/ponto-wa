@@ -1426,10 +1426,10 @@ function buildRows(empId, allData, month){
       if(isFolgaComp && !rec.entrada){
         const jd=jornadaDia(date,f.id);
         totalPrev+=jd; // conta como previsto para o saldo geral ficar correto
-        const saldoNeg=-jd;
+        const descFolga=(feriadosData[date]&&feriadosData[date].descricao)?feriadosData[date].descricao:'Folga a compensar';
         linhas.push([date, formatDate(date),
           f.nome.split(' ')[0]+' '+f.nome.split(' ').slice(-1)[0],
-          '—','—','—','—','—','-'+minToHHMM(Math.round(jd*60)),'A compensar','Loja fechada — folga a compensar']);
+          '—','—','—','—','—','-'+minToHHMM(Math.round(jd*60)),'A compensar',descFolga]);
         return;
       }
 
