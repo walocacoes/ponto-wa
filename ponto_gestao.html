@@ -516,7 +516,7 @@ window.showView=function(name,btn){
   if(btn)btn.classList.add('active');
   if(name==='historico')renderHistorico();
   if(name==='dashboard')renderDashboard();
-  if(name==='monitor')renderMonitor();
+  if(name==='monitor'){Promise.all([loadFeriados(),loadAfastamentos()]).then(renderMonitor);}
   if(name==='lancamento'){loadFeriados().then(renderFeriados);loadAfastamentos().then(renderAfastamentos);}
 };
 
@@ -631,7 +631,18 @@ window.renderMonitor=async function(){
   const cards=registros.map(({f,r})=>{
     let statusLabel='',statusClass='',statusTime='',alertMsg='';
 
-    if(!r.entrada){
+    // verificar se está afastado (férias, licença, atestado)
+    const tipoAfast=afastamentoNaData(f.id,today);
+    const isFolgaComp=folgasCompensarCache.has(today);
+    const isFeriado=feriadosCache.has(today);
+
+    if(tipoAfast){
+      statusLabel=tipoAfast;statusClass='bg-green';statusTime='Afastamento';
+    } else if(isFeriado){
+      statusLabel='Feriado';statusClass='bg-blue';
+    } else if(isFolgaComp){
+      statusLabel='Folga a compensar';statusClass='bg-yellow';
+    } else if(!r.entrada){
       statusLabel='Ausente';statusClass='bg-red';
     } else if(r.entrada&&!r.saida_almoco&&!r.saida){
       statusLabel='Presente';statusClass='bg-green';statusTime='Entrou '+r.entrada;
