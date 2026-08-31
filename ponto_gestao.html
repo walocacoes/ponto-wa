@@ -637,7 +637,7 @@ window.renderMonitor=async function(){
     const isFeriado=feriadosCache.has(today);
 
     if(tipoAfast){
-      statusLabel=tipoAfast;statusClass='bg-green';statusTime='Afastamento';
+      statusLabel=tipoAfast;statusClass='bg-gray';statusTime='Afastamento';
     } else if(isFeriado){
       statusLabel='Feriado';statusClass='bg-blue';
     } else if(isFolgaComp){
@@ -756,11 +756,11 @@ window.renderHistorico=async function(){
   tbody.innerHTML=histCache.map(({date,f,rec,horas,saldo,statusStr})=>{
     // linha de afastamento (férias, licença, atestado)
     if(rec._afastamento){
-      return `<tr style="background:#16311f !important;">
+      return `<tr style="background:#242424 !important;">
         <td>${formatDate(date)}</td>
         <td>${f.nome.split(' ')[0]}</td>
-        <td colspan="6" style="color:#22C55E;font-style:italic;">🌴 ${rec._tipoAfast}</td>
-        <td><span class="badge" style="background:#16311f;color:#22C55E;border:1px solid #22C55E44;">${rec._tipoAfast}</span></td>
+        <td colspan="6" style="color:#A0A0A0;font-style:italic;">🌴 ${rec._tipoAfast}</td>
+        <td><span class="badge" style="background:#2A2A2A;color:#A0A0A0;border:1px solid #3A3A3A;">${rec._tipoAfast}</span></td>
         <td>—</td>
       </tr>`;
     }
