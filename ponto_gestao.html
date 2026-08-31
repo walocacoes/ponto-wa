@@ -1417,9 +1417,22 @@ function buildRows(empId, allData, month){
         return;
       }
       const rec=ed[date]||{};
+      const isFolgaComp=folgasCompensarCache.has(date);
       const horas=calcHoras(rec),saldoMin=calcSaldoComTolerancia(horas,jornadaDia(date,f.id)),saldo=saldoMin/60;
       const isMeioPeriodoFunc=f.id==='F06';
       const isSabBuild=new Date(date+'T12:00:00').getDay()===6;
+
+      // folga a compensar sem registro — não é falta, gera saldo negativo
+      if(isFolgaComp && !rec.entrada){
+        const jd=jornadaDia(date,f.id);
+        totalPrev+=jd; // conta como previsto para o saldo geral ficar correto
+        const saldoNeg=-jd;
+        linhas.push([date, formatDate(date),
+          f.nome.split(' ')[0]+' '+f.nome.split(' ').slice(-1)[0],
+          '—','—','—','—','—','-'+minToHHMM(Math.round(jd*60)),'A compensar','Loja fechada — folga a compensar']);
+        return;
+      }
+
       let status='OK';
       if(!rec.entrada){status='Falta';totalFaltas++;}
       else if(isMeioPeriodoFunc||isSabBuild?!rec.saida:!rec.saida_almoco||!rec.retorno_almoco||!rec.saida)status='Incompleto';
@@ -1433,6 +1446,24 @@ function buildRows(empId, allData, month){
         status, rec._motivo||''
       ]);
     });
+
+    // afastamentos (férias, licenças, atestados) no mês
+    const afastList=afastamentosCache[f.id]||[];
+    afastList.forEach(a=>{
+      let cur=new Date(a.inicio+'T12:00:00');const fimD=new Date(a.fim+'T12:00:00');
+      while(cur<=fimD){
+        const ds=cur.getFullYear()+'-'+pad(cur.getMonth()+1)+'-'+pad(cur.getDate());
+        if(ds.startsWith(month)){
+          linhas.push([ds, formatDate(ds),
+            f.nome.split(' ')[0]+' '+f.nome.split(' ').slice(-1)[0],
+            '—','—','—','—','—','—',a.tipo,'']);
+        }
+        cur.setDate(cur.getDate()+1);
+      }
+    });
+
+    // reordenar linhas por data (afastamentos entram fora de ordem)
+    linhas.sort((x,y)=>x[0].localeCompare(y[0]));
 
     const saldoTotal=totalTrab-totalPrev;
     resultado.push({
@@ -1506,6 +1537,8 @@ function gerarPDF(resultado, titulo, subtitulo){
           else if(data.cell.raw==='Editado'){data.cell.styles.textColor=[180,90,0];}
           else if(data.cell.raw==='Feriado'){data.cell.styles.textColor=[30,80,180];data.cell.styles.fillColor=[235,242,255];}
           else if(data.cell.raw==='Incompleto'){data.cell.styles.textColor=[150,100,0];}
+          else if(data.cell.raw==='A compensar'){data.cell.styles.textColor=[180,120,0];data.cell.styles.fillColor=[255,248,230];data.cell.styles.fontStyle='bold';}
+          else if(['Férias','Licença maternidade','Licença paternidade','Atestado médico','Outro afastamento'].includes(data.cell.raw)){data.cell.styles.textColor=[90,90,90];data.cell.styles.fillColor=[240,240,240];}
         }
         if(data.section==='body'&&data.column.index===7){
           if(data.cell.raw&&data.cell.raw.startsWith('+'))data.cell.styles.textColor=[22,120,60];
