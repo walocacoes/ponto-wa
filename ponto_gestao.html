@@ -272,6 +272,39 @@ tr:hover td{background:var(--surface2);}
     <div class="divider"></div>
     <div id="fer-lista"><div class="loading">Carregando...</div></div>
   </div>
+
+  <!-- AFASTAMENTOS -->
+  <div class="card">
+    <div class="card-title">Afastamentos</div>
+    <div style="font-size:12px;color:#A0A0A0;margin-bottom:14px;">Férias, licenças e atestados. Esses dias não contam como falta nem geram saldo negativo. Para atestado de um dia só, use a mesma data no início e no fim.</div>
+    <div class="inp-wrap" style="margin-bottom:12px;">
+      <div class="inp-label">Funcionário</div>
+      <select class="sel" id="afast-func" style="margin-bottom:0;"></select>
+    </div>
+    <div class="inp-wrap" style="margin-bottom:12px;">
+      <div class="inp-label">Tipo</div>
+      <select class="sel" id="afast-tipo" style="margin-bottom:0;">
+        <option value="Férias">Férias</option>
+        <option value="Licença maternidade">Licença maternidade</option>
+        <option value="Licença paternidade">Licença paternidade</option>
+        <option value="Atestado médico">Atestado médico</option>
+        <option value="Outro afastamento">Outro afastamento</option>
+      </select>
+    </div>
+    <div class="grid2" style="margin-bottom:12px;">
+      <div class="inp-wrap">
+        <div class="inp-label">Início</div>
+        <input type="date" class="inp" id="afast-inicio">
+      </div>
+      <div class="inp-wrap">
+        <div class="inp-label">Fim</div>
+        <input type="date" class="inp" id="afast-fim">
+      </div>
+    </div>
+    <button class="btn" onclick="salvarAfastamento()" style="margin-top:4px;">Cadastrar Afastamento</button>
+    <div class="divider"></div>
+    <div id="afast-lista"><div class="loading">Carregando...</div></div>
+  </div>
 </div>
 
 <!-- DASHBOARD -->
@@ -459,7 +492,7 @@ function initSelects(){
   for(let i=0;i<6;i++){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);months.push(d.getFullYear()+'-'+pad(d.getMonth()+1));}
 
   FUNCIONARIOS.forEach(f=>{
-    ['emp-select','hist-emp-select','lanc-emp','dash-exp-emp'].forEach(id=>{
+    ['emp-select','hist-emp-select','lanc-emp','dash-exp-emp','afast-func'].forEach(id=>{
       const el=document.getElementById(id);if(!el)return;
       const o=document.createElement('option');o.value=f.id;o.textContent=f.nome;el.appendChild(o);
     });
@@ -484,7 +517,7 @@ window.showView=function(name,btn){
   if(name==='historico')renderHistorico();
   if(name==='dashboard')renderDashboard();
   if(name==='monitor')renderMonitor();
-  if(name==='lancamento'){loadFeriados().then(renderFeriados);}
+  if(name==='lancamento'){loadFeriados().then(renderFeriados);loadAfastamentos().then(renderAfastamentos);}
 };
 
 // ── PONTO ──
@@ -690,11 +723,36 @@ window.renderHistorico=async function(){
         histCache.push({date,f,rec:{_feriado:true},horas:0,saldo:0,statusStr:'Feriado'});
       });
     }
+
+    // afastamentos (férias, licenças, atestados) do funcionário no mês
+    const afastList = afastamentosCache[f.id] || [];
+    afastList.forEach(a=>{
+      // gerar cada dia do afastamento que cai no mês selecionado
+      let cur = new Date(a.inicio+'T12:00:00');
+      const fimD = new Date(a.fim+'T12:00:00');
+      while(cur <= fimD){
+        const ds = cur.getFullYear()+'-'+pad(cur.getMonth()+1)+'-'+pad(cur.getDate());
+        if(ds.startsWith(month) && (!dataFilter||ds===dataFilter)){
+          histCache.push({date:ds,f,rec:{_afastamento:true,_tipoAfast:a.tipo},horas:0,saldo:0,statusStr:'Afastamento'});
+        }
+        cur.setDate(cur.getDate()+1);
+      }
+    });
   });
 
   if(!histCache.length){tbody.innerHTML='<tr><td colspan="10" class="loading">Nenhum registro encontrado</td></tr>';return;}
 
   tbody.innerHTML=histCache.map(({date,f,rec,horas,saldo,statusStr})=>{
+    // linha de afastamento (férias, licença, atestado)
+    if(rec._afastamento){
+      return `<tr style="background:#16311f !important;">
+        <td>${formatDate(date)}</td>
+        <td>${f.nome.split(' ')[0]}</td>
+        <td colspan="6" style="color:#22C55E;font-style:italic;">🌴 ${rec._tipoAfast}</td>
+        <td><span class="badge" style="background:#16311f;color:#22C55E;border:1px solid #22C55E44;">${rec._tipoAfast}</span></td>
+        <td>—</td>
+      </tr>`;
+    }
     const sc=saldo>=0?'#22C55E':'#E8302F';
     const statusBadge={
       'OK':'<span class="badge bg-green">OK</span>',
@@ -933,6 +991,7 @@ function diasUteisDoMes(month, empId){
     const ds = `${y}-${pad(m)}-${pad(d)}`;
     if(w>=1 && w<=6 && dt <= hoje && dt >= inicio && !feriadosCache.has(ds)){
       if(semSabado && w===6) continue; // pula sábado para quem não trabalha
+      if(afastamentoNaData(empId, ds)) continue; // funcionário afastado (férias/licença/atestado)
       dias.push(ds);
     }
   }
@@ -1170,6 +1229,82 @@ function renderGrafico(stats){
 let feriadosCache = new Set();       // não conta como nada
 let folgasCompensarCache = new Set(); // gera saldo negativo
 let feriadosData = {};               // guarda tipo e descrição
+
+// ── AFASTAMENTOS (férias, licenças, atestados) ──
+// afastamentosCache[empId] = [{inicio, fim, tipo}, ...]
+let afastamentosCache = {};
+
+async function loadAfastamentos(){
+  try{
+    const snap = await getDocs(collection(db,'afastamentos'));
+    afastamentosCache = {};
+    snap.forEach(d=>{
+      const a = d.data();
+      if(!afastamentosCache[a.empId]) afastamentosCache[a.empId] = [];
+      afastamentosCache[a.empId].push({id:d.id, inicio:a.inicio, fim:a.fim, tipo:a.tipo});
+    });
+  }catch{ afastamentosCache = {}; }
+}
+
+// Retorna o tipo de afastamento se a data estiver dentro de algum período, senão null
+function afastamentoNaData(empId, ds){
+  const lista = afastamentosCache[empId] || [];
+  for(const a of lista){
+    if(ds >= a.inicio && ds <= a.fim) return a.tipo;
+  }
+  return null;
+}
+
+async function renderAfastamentos(){
+  try{
+    const snap = await getDocs(collection(db,'afastamentos'));
+    const lista = [];
+    snap.forEach(d => lista.push({id:d.id, ...d.data()}));
+    lista.sort((a,b)=>b.inicio.localeCompare(a.inicio));
+    const el = document.getElementById('afast-lista');
+    if(!lista.length){
+      el.innerHTML = '<div style="color:var(--text3);font-size:13px;">Nenhum afastamento cadastrado.</div>';
+      return;
+    }
+    el.innerHTML = lista.map(a=>{
+      const f = FUNCIONARIOS.find(f=>f.id===a.empId);
+      const nome = f?f.nome:a.empId;
+      const periodo = a.inicio===a.fim ? formatDate(a.inicio) : formatDate(a.inicio)+' a '+formatDate(a.fim);
+      return `<div class="emp-row" style="padding:10px 0;">
+        <div>
+          <div class="emp-name">${nome} <span style="font-size:10px;background:#1a2d1a;color:#22C55E;padding:2px 8px;border-radius:4px;margin-left:6px;">${a.tipo}</span></div>
+          <div class="emp-sub">${periodo}</div>
+        </div>
+        <button onclick="excluirAfastamento('${a.id}')" style="margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--text2);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-family:Inter,sans-serif;">Remover</button>
+      </div>`;
+    }).join('');
+  }catch(e){ console.error(e); }
+}
+
+window.salvarAfastamento = async function(){
+  const empId = document.getElementById('afast-func').value;
+  const tipo = document.getElementById('afast-tipo').value;
+  const inicio = document.getElementById('afast-inicio').value;
+  const fim = document.getElementById('afast-fim').value;
+  if(!empId){ showToast('Selecione o funcionário','error'); return; }
+  if(!inicio||!fim){ showToast('Informe início e fim','error'); return; }
+  if(fim < inicio){ showToast('A data fim não pode ser antes do início','error'); return; }
+  const docId = empId+'_'+inicio;
+  await setDoc(doc(db,'afastamentos',docId), { empId, tipo, inicio, fim });
+  if(!afastamentosCache[empId]) afastamentosCache[empId]=[];
+  afastamentosCache[empId].push({id:docId, inicio, fim, tipo});
+  document.getElementById('afast-inicio').value='';
+  document.getElementById('afast-fim').value='';
+  showToast('✓ Afastamento cadastrado','success');
+  renderAfastamentos();
+};
+
+window.excluirAfastamento = async function(docId){
+  await deleteDoc(doc(db,'afastamentos',docId));
+  await loadAfastamentos();
+  showToast('Afastamento removido','success');
+  renderAfastamentos();
+};
 
 async function loadFeriados(){
   try{
@@ -1452,7 +1587,7 @@ window.showToast=function(msg,type='success'){const t=document.getElementById('t
 
 // ── START ──
 initSelects();
-loadFeriados().then(()=>loadTodayRecord());
+Promise.all([loadFeriados(),loadAfastamentos()]).then(()=>loadTodayRecord());
 </script>
 </body>
 </html>

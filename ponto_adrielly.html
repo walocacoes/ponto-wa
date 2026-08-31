@@ -466,10 +466,24 @@ async function renderHistorico(){
 
   // buscar feriados do mês
   let feriadosDoMes=[];
+  let afastamentosDoMes=[];
   try{
     const snap=await getDocs(collection(db,'feriados'));
     snap.forEach(d=>{if(d.id.startsWith(monthCapturado)){const dd=d.data();feriadosDoMes.push({date:d.id,desc:dd.descricao||'',tipo:dd.tipo||'feriado'});}});
     feriadosDoMes.sort((a,b)=>a.date.localeCompare(b.date));
+  }catch{}
+  try{
+    const asnap=await getDocs(collection(db,'afastamentos'));
+    asnap.forEach(d=>{
+      const a=d.data();
+      if(a.empId!==empId)return;
+      let cur=new Date(a.inicio+'T12:00:00');const fim=new Date(a.fim+'T12:00:00');
+      while(cur<=fim){
+        const ds=cur.getFullYear()+'-'+pad(cur.getMonth()+1)+'-'+pad(cur.getDate());
+        if(ds.startsWith(monthCapturado))afastamentosDoMes.push({date:ds,tipo:a.tipo});
+        cur.setDate(cur.getDate()+1);
+      }
+    });
   }catch{}
 
   // calcular saldo do mês e acumulado (só para funcionários, não gestão)
@@ -560,7 +574,7 @@ async function renderHistorico(){
     }
   }
 
-  if(!dates.length && !feriadosDoMes.length){tbody.innerHTML='<tr><td colspan="8" class="loading">Nenhum registro encontrado</td></tr>';return;}
+  if(!dates.length && !feriadosDoMes.length && !afastamentosDoMes.length){tbody.innerHTML='<tr><td colspan="8" class="loading">Nenhum registro encontrado</td></tr>';return;}
 
   // combinar registros normais + feriados, ordenados por data
   const todasLinhas = [];
@@ -570,9 +584,15 @@ async function renderHistorico(){
   feriadosDoMes.forEach(f=>{
     todasLinhas.push({date:f.date, tipo:'feriado', desc:f.desc, ferTipo:f.tipo});
   });
+  afastamentosDoMes.forEach(a=>{
+    todasLinhas.push({date:a.date, tipo:'afastamento', desc:a.tipo});
+  });
   todasLinhas.sort((a,b)=>a.date.localeCompare(b.date));
 
   tbody.innerHTML=todasLinhas.map(({date,tipo,rec,desc,ferTipo})=>{
+    if(tipo==='afastamento'){
+      return '<tr style="background:#16311f !important;"><td>'+formatDate(date)+'</td><td colspan="5" style="color:#22C55E;font-style:italic;">🌴 '+desc+'</td><td>—</td><td><span class="badge" style="background:#16311f;color:#22C55E;border:1px solid #22C55E44;">'+desc+'</span></td></tr>';
+    }
     if(tipo==='feriado'){
       if(ferTipo==='compensar'){
         return '<tr style="background:#2d2310 !important;"><td>'+formatDate(date)+'</td><td colspan="5" style="color:#F59E0B;font-style:italic;">⏰ Folga a compensar — '+desc+'</td><td>—</td><td><span class="badge" style="background:#2d2310;color:#F59E0B;border:1px solid #F59E0B44;">A compensar</span></td></tr>';
