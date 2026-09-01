@@ -558,9 +558,12 @@ window.renderHistorico=async function(){
         if(dt<=limCLT&&s>0)saldoAntigo+=s;
       });
       // descontar folgas a compensar
+      const INICIO_FUNC_AC={'F05':'2026-07-13','F06':'2026-07-13'};
+      const inicioAc=INICIO_FUNC_AC[empId]||'2026-06-01';
       folgasComp.forEach(fd=>{
         const dt=new Date(fd+'T12:00:00');
         if(dt>ontem)return;
+        if(fd<inicioAc)return; // antes da contratação, não deve (igual ao painel)
         // não pula sábado: jornadaDia já devolve 0 no domingo e para quem não trabalha sábado
         saldoAcum-=jornadaDia(fd)*60;
       });
