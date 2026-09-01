@@ -543,8 +543,7 @@ window.renderHistorico=async function(){
       folgasComp.forEach(fd=>{
         const dt=new Date(fd+'T12:00:00');
         if(dt>ontem)return;
-        const w=dt.getDay();
-        if(w===0||w===6)return;
+        // não pula sábado: jornadaDia já devolve 0 no domingo e para quem não trabalha sábado
         saldoAcum-=jornadaDia(fd)*60;
       });
       // aplicar compensações registradas
@@ -613,9 +612,31 @@ window.renderHistorico=async function(){
   compensacoesDoMes.forEach(cp=>{
     todasLinhas.push({date:cp.date, tipo:'compensacao', minutos:cp.minutos, desc:cp.obs});
   });
+  // gerar FALTAS: dias de trabalho sem registro, feriado/folga ou afastamento (até ontem)
+  const INICIO_SISTEMA_HIST='2026-06-01';
+  const INICIO_FUNC_HIST={'F05':'2026-07-13','F06':'2026-07-13'};
+  const inicioHist=INICIO_FUNC_HIST[empId]||INICIO_SISTEMA_HIST;
+  const cobertos=new Set(dates);
+  feriadosDoMes.forEach(x=>cobertos.add(x.date));
+  afastamentosDoMes.forEach(x=>cobertos.add(x.date));
+  compensacoesDoMes.forEach(x=>cobertos.add(x.date));
+  const ontemFalta=new Date();ontemFalta.setDate(ontemFalta.getDate()-1);ontemFalta.setHours(23,59,59);
+  const [yF,mF]=monthCapturado.split('-').map(Number);
+  const ultDiaF=new Date(yF,mF,0).getDate();
+  for(let dd=1;dd<=ultDiaF;dd++){
+    const dsF=monthCapturado+'-'+pad(dd);
+    if(dsF<inicioHist)continue;
+    if(new Date(dsF+'T12:00:00')>ontemFalta)continue;
+    if(jornadaDia(dsF)<=0)continue;
+    if(cobertos.has(dsF))continue;
+    todasLinhas.push({date:dsF,tipo:'falta'});
+  }
   todasLinhas.sort((a,b)=>a.date.localeCompare(b.date));
 
   tbody.innerHTML=todasLinhas.map(({date,tipo,rec,desc,ferTipo,minutos})=>{
+    if(tipo==='falta'){
+      return '<tr style="background:#2a1515 !important;"><td>'+formatDate(date)+'</td><td colspan="5" style="color:#E8302F;font-style:italic;">Sem registro de ponto</td><td>—</td><td><span class="badge badge-red">Falta</span></td></tr>';
+    }
     if(tipo==='afastamento'){
       return '<tr style="background:#242424 !important;"><td>'+formatDate(date)+'</td><td colspan="5" style="color:#A0A0A0;font-style:italic;">🌴 '+desc+'</td><td>—</td><td><span class="badge" style="background:#2A2A2A;color:#A0A0A0;border:1px solid #3A3A3A;">'+desc+'</span></td></tr>';
     }

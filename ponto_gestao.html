@@ -1719,7 +1719,6 @@ function buildRows(empId, allData, month){
     folgasCompensarCache.forEach(ds=>{
       const dt=new Date(ds+'T12:00:00');
       if(dt<ini60||dt>ontem60)return;
-      const w=dt.getDay();if(w===0||w===6)return;
       const inicioStr=(INICIO_FUNC&&INICIO_FUNC[f.id])||INICIO_SISTEMA;
       if(ds<inicioStr)return;
       const jd=jornadaDia(ds,f.id)*60;
