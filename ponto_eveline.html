@@ -472,7 +472,7 @@ window.onHistEmpChange=function(){
   renderHistorico();
 };
 
-async function renderHistorico(){
+window.renderHistorico=async function(){
   // Capturar valores ANTES de qualquer operação async
   const empId=IS_GESTAO
     ? document.getElementById('hist-emp-select').value
