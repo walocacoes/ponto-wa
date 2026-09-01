@@ -295,7 +295,8 @@ function minToHHMM(min){const m=Math.round(Math.abs(min));const h=Math.floor(m/6
 function calcHoras(rec){const e=timeToMin(rec.entrada),s=timeToMin(rec.saida),sa=timeToMin(rec.saida_almoco),ra=timeToMin(rec.retorno_almoco);if(!e||!s)return 0;let t=s-e;if(sa&&ra)t-=(ra-sa);return Math.round(t)/60;}
 function calcSaldoComTolerancia(horas,jornadaH){const d=Math.round((horas-jornadaH)*60);return Math.abs(d)<=10?0:d;}
 function isWeekend(d){const[y,m,dd]=d.split('-').map(Number);const w=new Date(y,m-1,dd).getDay();return w===0;}
-function jornadaDia(dateStr){const[y,m,d]=dateStr.split('-').map(Number);const w=new Date(y,m-1,d).getDay();return w===6?4:8;}
+let abonoMeioSet=new Set();
+function jornadaDia(dateStr){const[y,m,d]=dateStr.split('-').map(Number);const w=new Date(y,m-1,d).getDay();let __b=(w===6?4:8);if(typeof abonoMeioSet!=='undefined'&&abonoMeioSet.has(dateStr))__b=__b/2;return __b;}
 
 setInterval(()=>{const n=new Date();document.getElementById('clock').textContent=pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());},1000);
 
@@ -472,7 +473,8 @@ window.renderHistorico=async function(){
   let afastamentosDoMes=[];
   try{
     const snap=await getDocs(collection(db,'feriados'));
-    snap.forEach(d=>{if(d.id.startsWith(monthCapturado)){const dd=d.data();feriadosDoMes.push({date:d.id,desc:dd.descricao||'',tipo:dd.tipo||'feriado'});}});
+    abonoMeioSet=new Set();
+    snap.forEach(d=>{const dd=d.data();const meio=dd.periodo==='meio';if(dd.tipo!=='compensar'&&meio)abonoMeioSet.add(d.id);if(d.id.startsWith(monthCapturado)&&!meio){feriadosDoMes.push({date:d.id,desc:dd.descricao||'',tipo:dd.tipo||'feriado'});}});
     feriadosDoMes.sort((a,b)=>a.date.localeCompare(b.date));
   }catch{}
   try{
@@ -520,7 +522,7 @@ window.renderHistorico=async function(){
       // buscar folgas a compensar
       getDocs(collection(db,'feriados')).then(async ferSnap=>{
        const folgasComp=new Set();
-       ferSnap.forEach(d=>{if(d.data().tipo==='compensar')folgasComp.add(d.id);});
+       ferSnap.forEach(d=>{const x=d.data();if(x.tipo==='compensar'&&x.periodo!=='meio')folgasComp.add(d.id);});
        const allRec=await getAllMonthRecords('2026');
       const ontem=new Date();ontem.setDate(ontem.getDate()-1);ontem.setHours(23,59,59);
       const limCLT=new Date();limCLT.setDate(limCLT.getDate()-45);

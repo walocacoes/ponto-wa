@@ -258,6 +258,13 @@ tr:hover td{background:var(--surface2);}
         <option value="compensar">Folga a compensar (funcionário deve as horas)</option>
       </select>
     </div>
+    <div class="inp-wrap" style="margin-bottom:12px;">
+      <div class="inp-label">Período</div>
+      <select class="sel" id="fer-periodo" style="margin-bottom:0;">
+        <option value="integral">Dia inteiro</option>
+        <option value="meio">Meio período (liberou metade do dia)</option>
+      </select>
+    </div>
     <div class="grid2" style="margin-bottom:12px;">
       <div class="inp-wrap">
         <div class="inp-label">Data</div>
@@ -462,10 +469,14 @@ function isWeekend(d){const[y,m,dd]=d.split('-').map(Number);const w=new Date(y,
 function jornadaDia(dateStr,empId){
   const[y,m,d]=dateStr.split('-').map(Number);
   const w=new Date(y,m-1,d).getDay();
-  if(w===0)return 0;
-  if(empId&&typeof SEM_SABADO!=='undefined'&&SEM_SABADO.has(empId)&&w===6)return 0;
-  if(w===6)return 4;
-  return (empId&&typeof JORNADA_FUNC!=='undefined'&&JORNADA_FUNC[empId])||8;
+  let base;
+  if(w===0) base=0;
+  else if(empId&&typeof SEM_SABADO!=='undefined'&&SEM_SABADO.has(empId)&&w===6) base=0;
+  else if(w===6) base=4;
+  else base=(empId&&typeof JORNADA_FUNC!=='undefined'&&JORNADA_FUNC[empId])||8;
+  // meio período abonado: jornada prevista cai pela metade nesse dia
+  if(typeof abonoMeioCache!=='undefined'&&abonoMeioCache.has(dateStr)) base=base/2;
+  return base;
 }
 function initials(nome){return nome.split(' ').slice(0,2).map(w=>w[0]).join('');}
 
@@ -1327,7 +1338,9 @@ function renderGrafico(stats){
 
 // ── FERIADOS E FOLGAS A COMPENSAR ──
 let feriadosCache = new Set();       // não conta como nada
-let folgasCompensarCache = new Set(); // gera saldo negativo
+let folgasCompensarCache = new Set(); // gera saldo negativo (dia inteiro)
+let abonoMeioCache = new Set();       // meio período abonado: jornada do dia cai pela metade
+let folgaMeioCompCache = new Set();   // meio período a compensar: o próprio ponto gera o débito
 let feriadosData = {};               // guarda tipo e descrição
 
 // ── AFASTAMENTOS (férias, licenças, atestados) ──
@@ -1532,17 +1545,20 @@ async function loadFeriados(){
     const snap = await getDocs(collection(db,'feriados'));
     feriadosCache = new Set();
     folgasCompensarCache = new Set();
+    abonoMeioCache = new Set();
+    folgaMeioCompCache = new Set();
     feriadosData = {};
     snap.forEach(d => {
       const dados = d.data();
       feriadosData[d.id] = dados;
+      const meio = dados.periodo === 'meio';
       if(dados.tipo === 'compensar'){
-        folgasCompensarCache.add(d.id);
+        if(meio) folgaMeioCompCache.add(d.id); else folgasCompensarCache.add(d.id);
       } else {
-        feriadosCache.add(d.id);
+        if(meio) abonoMeioCache.add(d.id); else feriadosCache.add(d.id);
       }
     });
-  }catch{ feriadosCache = new Set(); folgasCompensarCache = new Set(); }
+  }catch{ feriadosCache = new Set(); folgasCompensarCache = new Set(); abonoMeioCache = new Set(); folgaMeioCompCache = new Set(); }
 }
 
 async function renderFeriados(){
@@ -1576,12 +1592,14 @@ window.salvarFeriado = async function(){
   const data = document.getElementById('fer-data').value;
   const desc = document.getElementById('fer-desc').value.trim();
   const tipo = document.getElementById('fer-tipo').value;
+  const periodo = document.getElementById('fer-periodo').value;
   if(!data){ showToast('Selecione uma data','error'); return; }
   if(!desc){ showToast('Informe a descrição','error'); return; }
-  await setDoc(doc(db,'feriados',data), { descricao: desc, tipo: tipo });
-  feriadosData[data] = { descricao: desc, tipo: tipo };
-  if(tipo === 'compensar'){ folgasCompensarCache.add(data); }
-  else { feriadosCache.add(data); }
+  await setDoc(doc(db,'feriados',data), { descricao: desc, tipo: tipo, periodo: periodo });
+  feriadosData[data] = { descricao: desc, tipo: tipo, periodo: periodo };
+  const meio = periodo === 'meio';
+  if(tipo === 'compensar'){ (meio?folgaMeioCompCache:folgasCompensarCache).add(data); }
+  else { (meio?abonoMeioCache:feriadosCache).add(data); }
   document.getElementById('fer-data').value = '';
   document.getElementById('fer-desc').value = '';
   showToast(tipo==='compensar'?'✓ Folga a compensar cadastrada':'✓ Feriado cadastrado','success');
@@ -1592,6 +1610,8 @@ window.excluirFeriado = async function(data){
   await deleteDoc(doc(db,'feriados',data));
   feriadosCache.delete(data);
   folgasCompensarCache.delete(data);
+  abonoMeioCache.delete(data);
+  folgaMeioCompCache.delete(data);
   delete feriadosData[data];
   showToast('Removido','success');
   renderFeriados();
