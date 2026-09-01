@@ -1450,7 +1450,7 @@ async function loadAceites(){
   try{
     const snap = await getDocs(collection(db,'aceites'));
     window._aceitesCache = {};
-    snap.forEach(d=>{ window._aceitesCache[d.id] = d.data().aceito_em; });
+    snap.forEach(d=>{ window._aceitesCache[d.id] = d.data(); });
   }catch{ window._aceitesCache = {}; }
 }
 
@@ -1986,9 +1986,9 @@ function gerarPDF(resultado, titulo, subtitulo){
     if(aceite){
       // aceite digital registrado
       doc.setFillColor(240,248,242);
-      doc.rect(10,aceiteY,277,16,'F');
+      doc.rect(10,aceiteY,277,22,'F');
       doc.setDrawColor(180,210,190);
-      doc.rect(10,aceiteY,277,16,'S');
+      doc.rect(10,aceiteY,277,22,'S');
       doc.setFont('helvetica','bold');
       doc.setFontSize(8);
       doc.setTextColor(22,120,60);
@@ -1996,7 +1996,9 @@ function gerarPDF(resultado, titulo, subtitulo){
       doc.setFont('helvetica','normal');
       doc.setFontSize(7.5);
       doc.setTextColor(80,80,80);
-      doc.text('Aceite digital registrado em '+aceite+' — '+f.nome,14,aceiteY+12);
+      doc.text('Aceite digital registrado em '+(aceite.aceito_em||'')+' — '+f.nome,14,aceiteY+12);
+      doc.setFontSize(6.5);doc.setTextColor(120,120,120);
+      doc.text('Aparelho: '+((aceite.dispositivo||'').slice(0,110)||'-')+'   .   IP: '+(aceite.ip||'-'),14,aceiteY+17);
     } else {
       // espaço para assinatura manual (caso não tenha aceite digital)
       doc.setFont('helvetica','normal');

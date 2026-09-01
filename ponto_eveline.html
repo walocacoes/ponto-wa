@@ -698,29 +698,43 @@ async function renderAceite(empId, month){
   const cont=document.getElementById('aceite-conteudo');
   if(!box||!cont)return;
   const hojeMes=todayStr().slice(0,7);
-  if(month>hojeMes){ box.style.display='none'; return; }
   box.style.display='block';
+  // o aceite só fica disponível depois que o mês fecha
+  if(month>=hojeMes){
+    cont.innerHTML='<div style="font-size:13px;color:var(--text2);display:flex;align-items:flex-start;gap:8px;"><span style="font-size:18px;">\uD83D\uDD12</span><span>A confirma\u00e7\u00e3o das horas de '+monthLabel(month)+' fica dispon\u00edvel quando o m\u00eas fechar. Voc\u00ea pode acompanhar suas marca\u00e7\u00f5es acima durante o m\u00eas.</span></div>';
+    return;
+  }
   cont.innerHTML='<div class="loading">Carregando...</div>';
-  let aceito=null;
+  let dados=null;
   try{
     const snap=await getDoc(doc(db,'aceites',empId+'_'+month));
-    if(snap.exists())aceito=snap.data().aceito_em;
+    if(snap.exists())dados=snap.data();
   }catch{}
-  if(aceito){
-    cont.innerHTML='<div style="display:flex;align-items:center;gap:12px;">'+
-      '<div style="font-size:24px;">✅</div>'+
+  if(dados&&dados.aceito_em){
+    const disp=dados.dispositivo?('<div style="font-size:11px;color:var(--text2);margin-top:4px;word-break:break-all;">Aparelho: '+dados.dispositivo+'</div>'):'';
+    const ipl=dados.ip?('<div style="font-size:11px;color:var(--text2);">IP: '+dados.ip+'</div>'):'';
+    cont.innerHTML='<div style="display:flex;align-items:flex-start;gap:12px;">'+
+      '<div style="font-size:24px;">\u2705</div>'+
       '<div><div style="font-size:14px;font-weight:600;color:var(--green);">Espelho de ponto conferido</div>'+
-      '<div style="font-size:12px;color:var(--text2);margin-top:2px;">Você confirmou a conferência em '+aceito+'</div></div></div>';
+      '<div style="font-size:12px;color:var(--text2);margin-top:2px;">Confirmado por voc\u00ea em '+dados.aceito_em+'</div>'+disp+ipl+'</div></div>';
   } else {
-    cont.innerHTML='<div style="font-size:13px;color:var(--text);margin-bottom:12px;">Confira suas marcações do mês acima. Se estiverem corretas, confirme abaixo. Isso registra que você conferiu e concorda com a jornada apurada.</div>'+
+    cont.innerHTML='<div style="font-size:13px;color:var(--text);margin-bottom:12px;">Confira suas marca\u00e7\u00f5es de '+monthLabel(month)+' acima. Se estiverem corretas, confirme abaixo. Fica registrado que voc\u00ea conferiu e concorda, com data, aparelho e IP.</div>'+
       '<button class="btn" onclick="confirmarAceite(\''+empId+'\',\''+month+'\')" style="width:auto;padding:12px 24px;">Confirmo que conferi minhas horas de '+monthLabel(month)+'</button>';
   }
 }
 
 window.confirmarAceite=async function(empId, month){
+  const hojeMes=todayStr().slice(0,7);
+  if(month>=hojeMes){ showToast('S\u00f3 \u00e9 poss\u00edvel confirmar depois que o m\u00eas fecha','error'); return; }
+  const f=FUNCIONARIOS.find(x=>x.id===empId);
+  const nome=f?f.nome:empId;
+  if(!confirm('Confirmar que voc\u00ea conferiu e concorda com suas horas de '+monthLabel(month)+'?\n\nEsta confirma\u00e7\u00e3o fica registrada com data, hora, aparelho e IP, como comprovante.')) return;
   const agora=new Date().toLocaleString('pt-BR');
+  const dispositivo=(navigator.userAgent||'desconhecido').slice(0,180);
+  let ip='n\u00e3o capturado';
+  try{ const r=await fetch('https://api.ipify.org?format=json'); const j=await r.json(); if(j&&j.ip) ip=j.ip; }catch{}
   try{
-    await setDoc(doc(db,'aceites',empId+'_'+month),{empId, month, aceito_em:agora});
+    await setDoc(doc(db,'aceites',empId+'_'+month),{empId, nome, month, aceito_em:agora, dispositivo, ip});
     showToast('Espelho de ponto confirmado','success');
     renderHistorico();
   }catch(e){ showToast('Erro ao confirmar. Tente novamente.','error'); }
