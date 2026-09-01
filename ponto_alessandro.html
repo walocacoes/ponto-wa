@@ -559,7 +559,11 @@ window.renderHistorico=async function(){
       const prazo=document.getElementById('saldo-acum-prazo');
       if(!box||!acumEl)return;
 
-      if(saldoAcum>0){
+      // saldo que sobra se as horas antigas (que estão vencendo) expirarem
+      const saldoProjetado=saldoAcum-saldoAntigo;
+
+      if(saldoAcum>0 && saldoProjetado>=0){
+        // positivo de verdade, mesmo sem as horas que vencem
         box.style.background='#16311f';box.style.border='1px solid #22C55E44';
         titulo.textContent='✅ Você tem horas a seu favor';titulo.style.color='#22C55E';
         acumEl.textContent='+'+minToHHMM(saldoAcum);acumEl.style.color='#22C55E';
@@ -568,13 +572,23 @@ window.renderHistorico=async function(){
         if(saldoAntigo>0){
           prazo.style.display='inline-block';
           prazo.style.background='#2d2310';prazo.style.color='#F59E0B';
-          prazo.textContent='⚠️ '+minToHHMM(saldoAntigo)+' próximas do limite de 60 dias — converse com a gestão';
+          prazo.textContent='⏳ '+minToHHMM(saldoAntigo)+' vencem no limite de 60 dias — use ou combine com a gestão';
         } else { prazo.style.display='none'; }
+      } else if(saldoAcum>0 && saldoProjetado<0){
+        // ATENÇÃO: só está positivo por causa de horas antigas que vão expirar
+        box.style.background='#2d2310';box.style.border='1px solid #F59E0B66';
+        titulo.textContent='⚠️ Seu saldo precisa de atenção';titulo.style.color='#F59E0B';
+        acumEl.textContent='+'+minToHHMM(saldoAcum);acumEl.style.color='#F59E0B';
+        desc.innerHTML='Seu saldo só está positivo por causa de <b>'+minToHHMM(saldoAntigo)+'</b> de horas extras antigas, que vencem no limite de 60 dias.<br>Sem elas, seu saldo fica em <b>'+minToHHMM(saldoProjetado)+'</b>. Use essas horas ou combine a compensação com a gestão antes que vençam.';
+        desc.style.color='#F59E0B';
+        prazo.style.display='inline-block';
+        prazo.style.background='#3a1d10';prazo.style.color='#F59E0B';
+        prazo.textContent='⏳ '+minToHHMM(saldoAntigo)+' vencem em breve — use ou converse com a gestão';
       } else if(saldoAcum<0){
         box.style.background='#2d1515';box.style.border='1px solid #E8302F44';
         titulo.textContent='⚠️ Você está devendo horas';titulo.style.color='#E8302F';
-        acumEl.textContent=minToHHMM(Math.abs(saldoAcum));acumEl.style.color='#E8302F';
-        desc.textContent='Você trabalhou menos do que o previsto no total. Essas horas precisam ser compensadas.';
+        acumEl.textContent=minToHHMM(saldoAcum);acumEl.style.color='#E8302F';
+        desc.textContent='Você trabalhou menos do que o previsto no total. Essas horas precisam ser compensadas em dia combinado com a gestão.';
         desc.style.color='#E8302F';prazo.style.display='none';
       } else {
         box.style.background='var(--surface2)';box.style.border='1px solid var(--border)';
