@@ -183,6 +183,9 @@
       </table>
     </div>
   </div>
+  <div id="aceite-box" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-top:14px;">
+    <div id="aceite-conteudo"></div>
+  </div>
 </div>
 
 <div class="view" id="view-dashboard">
@@ -485,6 +488,11 @@ async function renderHistorico(){
       }
     });
   }catch{}
+  let compensacoesDoMes=[];
+  try{
+    const csnap=await getDocs(collection(db,'compensacoes'));
+    csnap.forEach(d=>{const c=d.data();if(c.empId===empId&&c.data.startsWith(monthCapturado))compensacoesDoMes.push({date:c.data,minutos:c.minutos,obs:c.obs});});
+  }catch{}
 
   // calcular saldo do mês e acumulado (só para funcionários, não gestão)
   if(!IS_GESTAO){
@@ -534,9 +542,14 @@ async function renderHistorico(){
         const dt=new Date(fd+'T12:00:00');
         if(dt>ontem)return;
         const w=dt.getDay();
-        if(w===0||w===6)return; // fim de semana não desconta (loja fechada de qualquer forma)
+        if(w===0||w===6)return;
         saldoAcum-=jornadaDia(fd)*60;
       });
+      // aplicar compensações registradas
+      try{
+        const csnap=await getDocs(collection(db,'compensacoes'));
+        csnap.forEach(d=>{const c=d.data();if(c.empId===empId)saldoAcum+=c.minutos;});
+      }catch{}
       saldoAcum=Math.round(saldoAcum);
 
       const box=document.getElementById('saldo-acum-box');
@@ -587,11 +600,20 @@ async function renderHistorico(){
   afastamentosDoMes.forEach(a=>{
     todasLinhas.push({date:a.date, tipo:'afastamento', desc:a.tipo});
   });
+  compensacoesDoMes.forEach(cp=>{
+    todasLinhas.push({date:cp.date, tipo:'compensacao', minutos:cp.minutos, desc:cp.obs});
+  });
   todasLinhas.sort((a,b)=>a.date.localeCompare(b.date));
 
-  tbody.innerHTML=todasLinhas.map(({date,tipo,rec,desc,ferTipo})=>{
+  tbody.innerHTML=todasLinhas.map(({date,tipo,rec,desc,ferTipo,minutos})=>{
     if(tipo==='afastamento'){
       return '<tr style="background:#242424 !important;"><td>'+formatDate(date)+'</td><td colspan="5" style="color:#A0A0A0;font-style:italic;">🌴 '+desc+'</td><td>—</td><td><span class="badge" style="background:#2A2A2A;color:#A0A0A0;border:1px solid #3A3A3A;">'+desc+'</span></td></tr>';
+    }
+    if(tipo==='compensacao'){
+      const pos=minutos>=0;
+      const valorTxt=(pos?'+':'-')+minToHHMM(Math.abs(minutos));
+      const cor=pos?'#22C55E':'#E8302F';
+      return '<tr style="background:#1a2535 !important;"><td>'+formatDate(date)+'</td><td colspan="4" style="color:#60a5fa;font-style:italic;">⚖️ Compensação de banco de horas — '+desc+'</td><td style="color:'+cor+';font-weight:700;">'+valorTxt+'</td><td>—</td><td><span class="badge" style="background:#1a2535;color:#60a5fa;border:1px solid #60a5fa44;">Compensação</span></td></tr>';
     }
     if(tipo==='feriado'){
       if(ferTipo==='compensar'){
@@ -614,7 +636,44 @@ async function renderHistorico(){
     const saldoStr=(saldo>=0?'+':'')+minToHHMM(Math.abs(saldoMin));
     return '<tr><td>'+formatDate(date)+'</td><td>'+(rec.entrada||'—')+'</td><td>'+(rec.saida_almoco||'—')+'</td><td>'+(rec.retorno_almoco||'—')+'</td><td>'+(rec.saida||'—')+'</td><td>'+(horas>0?minToHHMM(horasMin):'—')+'</td><td style="color:'+sc+';font-weight:600">'+(horas>0?saldoStr:'—')+'</td><td>'+status+'</td></tr>';
   }).join('');
+
+  // bloco de aceite do espelho de ponto (apenas visão do funcionário)
+  if(!IS_GESTAO){ renderAceite('F04', monthCapturado); }
 }
+
+// ── ACEITE DO ESPELHO DE PONTO ──
+async function renderAceite(empId, month){
+  const box=document.getElementById('aceite-box');
+  const cont=document.getElementById('aceite-conteudo');
+  if(!box||!cont)return;
+  const hojeMes=todayStr().slice(0,7);
+  if(month>hojeMes){ box.style.display='none'; return; }
+  box.style.display='block';
+  cont.innerHTML='<div class="loading">Carregando...</div>';
+  let aceito=null;
+  try{
+    const snap=await getDoc(doc(db,'aceites',empId+'_'+month));
+    if(snap.exists())aceito=snap.data().aceito_em;
+  }catch{}
+  if(aceito){
+    cont.innerHTML='<div style="display:flex;align-items:center;gap:12px;">'+
+      '<div style="font-size:24px;">✅</div>'+
+      '<div><div style="font-size:14px;font-weight:600;color:var(--green);">Espelho de ponto conferido</div>'+
+      '<div style="font-size:12px;color:var(--text2);margin-top:2px;">Você confirmou a conferência em '+aceito+'</div></div></div>';
+  } else {
+    cont.innerHTML='<div style="font-size:13px;color:var(--text);margin-bottom:12px;">Confira suas marcações do mês acima. Se estiverem corretas, confirme abaixo. Isso registra que você conferiu e concorda com a jornada apurada.</div>'+
+      '<button class="btn" onclick="confirmarAceite(\''+empId+'\',\''+month+'\')" style="width:auto;padding:12px 24px;">Confirmo que conferi minhas horas de '+monthLabel(month)+'</button>';
+  }
+}
+
+window.confirmarAceite=async function(empId, month){
+  const agora=new Date().toLocaleString('pt-BR');
+  try{
+    await setDoc(doc(db,'aceites',empId+'_'+month),{empId, month, aceito_em:agora});
+    showToast('Espelho de ponto confirmado','success');
+    renderHistorico();
+  }catch(e){ showToast('Erro ao confirmar. Tente novamente.','error'); }
+};
 
 async function renderDashboard(){
   const month=document.getElementById('dash-month').value;

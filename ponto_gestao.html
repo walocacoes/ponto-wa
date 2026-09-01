@@ -423,12 +423,18 @@ const db = getFirestore(app);
 // ── CONSTANTES ──
 const JORNADA_H = 8;
 const DASHBOARD_PWD = 'wa2026';
+const EMPRESA = {
+  nome: 'WA Locações & Eventos',
+  cnpj: '55.074.408/0001-08',
+  endereco: 'Rua Coronel Fleury, nº 585, Bairro São João'
+};
+
 const FUNCIONARIOS = [
-  { id: 'F02', nome: 'Emanuella Rodrigues Noleto' },
-  { id: 'F03', nome: 'Alessandro Santos Rolin' },
-  { id: 'F04', nome: 'Adrielly Rodrigues Noleto' },
-  { id: 'F05', nome: 'Marilda Vieira da Silva' },
-  { id: 'F06', nome: 'Eveline da Silva Sousa' },
+  { id: 'F02', nome: 'Emanuella Rodrigues Noleto', cpf: '', cargo: 'Gestora Comercial e Marketing', admissao: '2024-10-01' },
+  { id: 'F03', nome: 'Alessandro Santos Rolin', cpf: '043.274.681-18', cargo: 'Motorista/Entregador', admissao: '2026-05-21' },
+  { id: 'F04', nome: 'Adrielly Rodrigues Noleto', cpf: '048.730.811-57', cargo: 'Gestora Financeira e Operacional', admissao: '2024-06-10' },
+  { id: 'F05', nome: 'Marilda Vieira da Silva', cpf: '051.746.801-84', cargo: 'Auxiliar de Serviços Gerais', admissao: '2026-07-13' },
+  { id: 'F06', nome: 'Eveline da Silva Sousa', cpf: '040.209.111-69', cargo: 'Auxiliar de Serviços Gerais', admissao: '2026-07-13' },
 ];
 // Jornada individual: Eveline 5h/dia
 const JORNADA_FUNC = { 'F06': 5 };
@@ -468,10 +474,28 @@ function verificarInconsistencias(rec){
   const alertas=[];
   const e=timeToMin(rec.entrada),sa=timeToMin(rec.saida_almoco),ra=timeToMin(rec.retorno_almoco),s=timeToMin(rec.saida);
   if(e&&sa&&sa<e) alertas.push('Saída do almoço antes da entrada');
-  if(sa&&ra&&(ra-sa)<60) alertas.push('Intervalo de almoço menor que 1 hora ('+(ra-sa)+'min)');
+  if(sa&&ra&&(ra-sa)<60) alertas.push('Intervalo de almoço menor que 1 hora ('+(ra-sa)+'min) — CLT Art. 71 exige mínimo de 1h para jornada acima de 6h');
   if(ra&&s&&s<ra) alertas.push('Saída antes do retorno do almoço');
   if(e&&s&&s<e) alertas.push('Saída antes da entrada');
+  // CLT Art. 59: jornada não pode passar de 10h (8h + 2h extras)
+  if(e&&s){
+    let trab=s-e;
+    if(sa&&ra)trab-=(ra-sa);
+    if(trab>600) alertas.push('Jornada de '+minToHHMM(trab)+' excede o limite de 10h diárias (CLT Art. 59)');
+  }
   return alertas;
+}
+
+// Verifica interjornada (11h entre saída de um dia e entrada do dia seguinte — CLT Art. 66)
+function verificarInterjornada(recAnterior, recAtual){
+  if(!recAnterior||!recAtual)return null;
+  const saidaAnt=timeToMin(recAnterior.saida);
+  const entradaAtual=timeToMin(recAtual.entrada);
+  if(!saidaAnt||!entradaAtual)return null;
+  // descanso = (24h - saída anterior) + entrada atual
+  const descanso=(1440-saidaAnt)+entradaAtual;
+  if(descanso<660) return 'Descanso de '+minToHHMM(descanso)+' entre jornadas (CLT Art. 66 exige mínimo de 11h)';
+  return null;
 }
 
 function renderAlertasInconsistencia(rec, containerId){
@@ -1152,6 +1176,14 @@ window.renderDashboard=async function(){
       saldoPorMes[mk]=(saldoPorMes[mk]||0)-desconto;
     });
 
+    // aplicar compensações registradas (ajuste manual acordado)
+    const comps = compensacoesCache[f.id] || [];
+    comps.forEach(c=>{
+      acum += c.minutos;
+      const mk = c.data.slice(0,7);
+      saldoPorMes[mk] = (saldoPorMes[mk]||0) + c.minutos;
+    });
+
     // data limite de compensação = 60 dias após a hora extra mais antiga
     let dataLimite=null,diasRestantes=null;
     if(acum>0 && dataHoraExtraAntiga){
@@ -1374,6 +1406,16 @@ window.excluirAfastamento = async function(docId){
   renderAfastamentos();
 };
 
+// ── ACEITES DO ESPELHO DE PONTO ──
+// _aceitesCache[empId_month] = data/hora do aceite
+async function loadAceites(){
+  try{
+    const snap = await getDocs(collection(db,'aceites'));
+    window._aceitesCache = {};
+    snap.forEach(d=>{ window._aceitesCache[d.id] = d.data().aceito_em; });
+  }catch{ window._aceitesCache = {}; }
+}
+
 // ── COMPENSAÇÕES DE BANCO DE HORAS ──
 // compensacoesCache[empId] = [{id, data, minutos (+/-), obs}, ...]
 let compensacoesCache = {};
@@ -1479,6 +1521,7 @@ async function renderCompensacoes(){
 window.excluirCompensacao = async function(docId){
   await deleteDoc(doc(db,'compensacoes',docId));
   await loadCompensacoes();
+  await loadAceites();
   showToast('Compensação removida','success');
   renderCompensacoes();
   atualizarSaldoComp();
@@ -1664,10 +1707,22 @@ function buildRows(empId, allData, month){
       const mk=ds.slice(0,7);
       saldoPorMes60[mk]=(saldoPorMes60[mk]||0)-jd;
     });
+    // aplicar compensações registradas nos últimos 60 dias
+    const compsF=compensacoesCache[f.id]||[];
+    compsF.forEach(cp=>{
+      const dt=new Date(cp.data+'T12:00:00');
+      if(dt<ini60||dt>ontem60)return;
+      saldoAcum60+=cp.minutos;
+      const mk=cp.data.slice(0,7);
+      saldoPorMes60[mk]=(saldoPorMes60[mk]||0)+cp.minutos;
+    });
+
+    // aceite do funcionário para o mês
+    const aceiteMes = (window._aceitesCache && window._aceitesCache[f.id+'_'+month]) || null;
 
     resultado.push({
       f, linhas,
-      resumo:{totalTrab,totalPrev,saldoTotal,totalFaltas,totalEditados,saldoPorMes60,saldoAcum60:Math.round(saldoAcum60)}
+      resumo:{totalTrab,totalPrev,saldoTotal,totalFaltas,totalEditados,saldoPorMes60,saldoAcum60:Math.round(saldoAcum60),aceite:aceiteMes}
     });
   });
 
@@ -1687,33 +1742,59 @@ function gerarPDF(resultado, titulo, subtitulo){
   doc.setTextColor(30,30,30);
   doc.setFont('helvetica','bold');
   doc.setFontSize(16);
-  doc.text('WA',12,13);
+  doc.text('WA',12,12);
   doc.setTextColor(196,30,32);
-  doc.setFontSize(9);
-  doc.text('LOCAÇÕES & EVENTOS',12,19);
+  doc.setFontSize(8);
+  doc.text('LOCAÇÕES & EVENTOS',12,17);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(110,110,110);
+  doc.text('CNPJ: '+EMPRESA.cnpj,12,22);
+  doc.text(EMPRESA.endereco,12,25);
   doc.setDrawColor(196,30,32);
   doc.setLineWidth(0.5);
   doc.line(0,28,297,28);
   doc.setTextColor(80,80,80);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(11);
+  doc.text('ESPELHO DE PONTO',297-10,11,{align:'right'});
   doc.setFont('helvetica','normal');
-  doc.setFontSize(10);
-  doc.text(titulo,297-10,12,{align:'right'});
-  doc.setFontSize(8);
-  doc.text(subtitulo,297-10,19,{align:'right'});
+  doc.setFontSize(9);
+  doc.text(titulo,297-10,17,{align:'right'});
   doc.setFontSize(7);
-  doc.text('Gerado em '+new Date().toLocaleString('pt-BR'),297-10,24,{align:'right'});
+  doc.text('Gerado em '+new Date().toLocaleString('pt-BR'),297-10,23,{align:'right'});
 
-  let startY=32;
+  let startY=34;
 
   resultado.forEach(({f,linhas,resumo},idx)=>{
     if(idx>0){doc.addPage();startY=20;}
 
-    // nome do funcionário como subtítulo da seção
+    // bloco de identificação do funcionário (Portaria 671)
+    const fInfo=FUNCIONARIOS.find(x=>x.id===f.id)||{};
+    const jornadaTxt = fInfo.id==='F06'
+      ? 'Seg a Sex 13:00-18:00 (5h/dia)'
+      : SEM_SABADO.has(fInfo.id)
+        ? 'Seg a Sex (8h/dia)'
+        : 'Seg a Sex (8h/dia) + Sáb (4h)';
+    const admissaoTxt = fInfo.admissao ? formatDate(fInfo.admissao) : '—';
+
+    doc.setFillColor(245,245,245);
+    doc.rect(10,startY,277,14,'F');
+    doc.setDrawColor(220,220,220);
+    doc.setLineWidth(0.2);
+    doc.rect(10,startY,277,14,'S');
     doc.setFont('helvetica','bold');
     doc.setFontSize(10);
     doc.setTextColor(196,30,32);
-    doc.text(f.nome,10,startY);
-    startY+=6;
+    doc.text(f.nome,14,startY+6);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(80,80,80);
+    doc.text('CPF: '+(fInfo.cpf||'—'),14,startY+11);
+    doc.text('Cargo: '+(fInfo.cargo||'—'),70,startY+11);
+    doc.text('Admissão: '+admissaoTxt,150,startY+11);
+    doc.text('Jornada: '+jornadaTxt,200,startY+11);
+    startY+=18;
 
     // tabela de registros
     const body=linhas.map(l=>l.slice(1)); // remove a data bruta (índice 0)
@@ -1831,6 +1912,38 @@ function gerarPDF(resultado, titulo, subtitulo){
     doc.setTextColor(...scAcum);
     const acumTxt=(resumo.saldoAcum60>0?'+':resumo.saldoAcum60<0?'-':'')+minToHHMM(Math.abs(resumo.saldoAcum60));
     doc.text(acumTxt,287-14,retY+19,{align:'right'});
+
+    // bloco de aceite / assinatura do funcionário
+    const aceiteY=retY+32;
+    const aceite=resumo.aceite;
+    if(aceite){
+      // aceite digital registrado
+      doc.setFillColor(240,248,242);
+      doc.rect(10,aceiteY,277,16,'F');
+      doc.setDrawColor(180,210,190);
+      doc.rect(10,aceiteY,277,16,'S');
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(8);
+      doc.setTextColor(22,120,60);
+      doc.text('✓ ESPELHO DE PONTO CONFERIDO E ACEITO PELO FUNCIONÁRIO',14,aceiteY+7);
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(80,80,80);
+      doc.text('Aceite digital registrado em '+aceite+' — '+f.nome,14,aceiteY+12);
+    } else {
+      // espaço para assinatura manual (caso não tenha aceite digital)
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(120,120,120);
+      doc.text('Declaro que conferi as marcações acima e estão de acordo com a jornada efetivamente cumprida.',14,aceiteY+3);
+      doc.setDrawColor(150,150,150);
+      doc.setLineWidth(0.2);
+      doc.line(14,aceiteY+16,120,aceiteY+16);
+      doc.line(160,aceiteY+16,260,aceiteY+16);
+      doc.setFontSize(7);doc.setTextColor(120,120,120);
+      doc.text('Assinatura do funcionário',14,aceiteY+20);
+      doc.text('Data',160,aceiteY+20);
+    }
   });
 
   // rodapé em todas as páginas
@@ -1852,6 +1965,8 @@ window.exportarPDFTodos=async function(){
   showToast('Gerando PDF...','success');
   const allData=await getAllMonthRecords(month);
   window._allDataCompleto=await getAllRecordsDesdeInicio();
+  await loadCompensacoes();
+  await loadAceites();
   const resultado=buildRows('',allData,month);
   gerarPDF(resultado,'Ponto '+monthLabel(month)+' — Todos','WA Locações & Eventos');
 };
@@ -1864,6 +1979,8 @@ window.exportarPDFFuncionario=async function(){
   showToast('Gerando PDF...','success');
   const allData=await getAllMonthRecords(month);
   window._allDataCompleto=await getAllRecordsDesdeInicio();
+  await loadCompensacoes();
+  await loadAceites();
   const resultado=buildRows(empId,allData,month);
   gerarPDF(resultado,'Ponto '+monthLabel(month)+' — '+f.nome.split(' ')[0],f.nome);
 };
@@ -1874,6 +1991,8 @@ window.exportarPDFHistorico=async function(){
   showToast('Gerando PDF...','success');
   const allData=await getAllMonthRecords(month);
   window._allDataCompleto=await getAllRecordsDesdeInicio();
+  await loadCompensacoes();
+  await loadAceites();
   const resultado=buildRows(empFilter||'',allData,month);
   if(!resultado.length){showToast('Nenhum dado para exportar','error');return;}
   gerarPDF(resultado,'Histórico '+monthLabel(month),'WA Locações & Eventos');
