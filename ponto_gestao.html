@@ -305,6 +305,41 @@ tr:hover td{background:var(--surface2);}
     <div class="divider"></div>
     <div id="afast-lista"><div class="loading">Carregando...</div></div>
   </div>
+
+  <!-- COMPENSAÇÃO DE BANCO DE HORAS -->
+  <div class="card">
+    <div class="card-title">Compensação de Banco de Horas</div>
+    <div style="font-size:12px;color:#A0A0A0;margin-bottom:14px;">Registre um acordo de compensação. O saldo acumulado do funcionário será ajustado imediatamente e o registro fica visível para ele e para a contabilidade.</div>
+    <div class="inp-wrap" style="margin-bottom:12px;">
+      <div class="inp-label">Funcionário</div>
+      <select class="sel" id="comp-func" style="margin-bottom:0;" onchange="atualizarSaldoComp()"></select>
+    </div>
+    <div id="comp-saldo-info" style="display:none;background:var(--surface2);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;"></div>
+    <div class="inp-wrap" style="margin-bottom:12px;">
+      <div class="inp-label">Tipo de ajuste</div>
+      <select class="sel" id="comp-tipo" style="margin-bottom:0;">
+        <option value="reduzir">Reduzir saldo (funcionário usou horas a favor)</option>
+        <option value="acrescentar">Acrescentar saldo (ajuste a favor do funcionário)</option>
+      </select>
+    </div>
+    <div class="grid2" style="margin-bottom:12px;">
+      <div class="inp-wrap">
+        <div class="inp-label">Horas (ex: 2.5 = 2h30)</div>
+        <input type="number" class="inp" id="comp-horas" placeholder="Ex: 2.5" min="0.25" step="0.25">
+      </div>
+      <div class="inp-wrap">
+        <div class="inp-label">Data do acordo</div>
+        <input type="date" class="inp" id="comp-data">
+      </div>
+    </div>
+    <div class="inp-wrap" style="margin-bottom:12px;">
+      <div class="inp-label">Observação *</div>
+      <input type="text" class="inp" id="comp-obs" placeholder="Ex: Abatimento de horas devidas em agosto, acordado com o funcionário">
+    </div>
+    <button class="btn" onclick="salvarCompensacao()" style="margin-top:4px;">Registrar Compensação</button>
+    <div class="divider"></div>
+    <div id="comp-lista"><div class="loading">Carregando...</div></div>
+  </div>
 </div>
 
 <!-- DASHBOARD -->
@@ -492,7 +527,7 @@ function initSelects(){
   for(let i=0;i<6;i++){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);months.push(d.getFullYear()+'-'+pad(d.getMonth()+1));}
 
   FUNCIONARIOS.forEach(f=>{
-    ['emp-select','hist-emp-select','lanc-emp','dash-exp-emp','afast-func'].forEach(id=>{
+    ['emp-select','hist-emp-select','lanc-emp','dash-exp-emp','afast-func','comp-func'].forEach(id=>{
       const el=document.getElementById(id);if(!el)return;
       const o=document.createElement('option');o.value=f.id;o.textContent=f.nome;el.appendChild(o);
     });
@@ -517,7 +552,7 @@ window.showView=function(name,btn){
   if(name==='historico')renderHistorico();
   if(name==='dashboard')renderDashboard();
   if(name==='monitor'){Promise.all([loadFeriados(),loadAfastamentos()]).then(renderMonitor);}
-  if(name==='lancamento'){loadFeriados().then(renderFeriados);loadAfastamentos().then(renderAfastamentos);}
+  if(name==='lancamento'){loadFeriados().then(renderFeriados);loadAfastamentos().then(renderAfastamentos);loadCompensacoes().then(renderCompensacoes);}
 };
 
 // ── PONTO ──
@@ -1084,6 +1119,7 @@ window.renderDashboard=async function(){
     const ed=todosRegistros[f.id]||{};
     let acum=0,antigo=0,faltasMes=0,hTMes=0,hPrevMes=0;
     const saldoPorMes={};
+    let dataHoraExtraAntiga=null;
 
     Object.keys(ed).sort().forEach(d=>{
       const dt=new Date(d+'T12:00:00');
@@ -1093,6 +1129,7 @@ window.renderDashboard=async function(){
       const s=calcSaldoComTolerancia(calcHoras(r),jornadaDia(d,f.id));
       acum+=s;
       if(dt<=limCLT&&s>0)antigo+=s;
+      if(s>0 && !dataHoraExtraAntiga) dataHoraExtraAntiga=d; // primeira hora extra positiva
       const mk=d.slice(0,7);
       saldoPorMes[mk]=(saldoPorMes[mk]||0)+s;
       // dados do mês selecionado
@@ -1115,12 +1152,21 @@ window.renderDashboard=async function(){
       saldoPorMes[mk]=(saldoPorMes[mk]||0)-desconto;
     });
 
-    return{f,acum:Math.round(acum),antigo:Math.round(antigo),saldoPorMes,faltasMes,hTMes,hPrevMes};
+    // data limite de compensação = 60 dias após a hora extra mais antiga
+    let dataLimite=null,diasRestantes=null;
+    if(acum>0 && dataHoraExtraAntiga){
+      const dl=new Date(dataHoraExtraAntiga+'T12:00:00');
+      dl.setDate(dl.getDate()+60);
+      dataLimite=pad(dl.getDate())+'/'+pad(dl.getMonth()+1)+'/'+dl.getFullYear();
+      diasRestantes=Math.ceil((dl-hojeD)/(1000*60*60*24));
+    }
+
+    return{f,acum:Math.round(acum),antigo:Math.round(antigo),saldoPorMes,faltasMes,hTMes,hPrevMes,dataLimite,diasRestantes};
   });
 
   const totalAcumPos = macroStats.filter(s=>s.acum>0).reduce((a,s)=>a+s.acum,0);
   const totalAcumNeg = macroStats.filter(s=>s.acum<0).reduce((a,s)=>a+Math.abs(s.acum),0);
-  const comVencimento = macroStats.filter(s=>s.antigo>0);
+  const comVencimento = macroStats.filter(s=>s.acum>0 && s.diasRestantes!==null && s.diasRestantes<=15);
 
   document.getElementById('dash-macro-content').innerHTML=`
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;">
@@ -1133,7 +1179,7 @@ window.renderDashboard=async function(){
         <div style="font-size:22px;font-weight:700;color:#E8302F;">${minToHHMM(totalAcumNeg)}</div>
       </div>
       <div style="background:var(--surface2);border-radius:10px;padding:14px;">
-        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">A vencer (CLT)</div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">Prazo próximo (≤15 dias)</div>
         <div style="font-size:22px;font-weight:700;color:${comVencimento.length>0?'#F59E0B':'var(--text3)'};">${comVencimento.length}</div>
       </div>
     </div>
@@ -1141,10 +1187,10 @@ window.renderDashboard=async function(){
     <div style="font-size:11px;color:var(--text2);margin-bottom:12px;">Situação de cada funcionário</div>
 
     <div style="display:flex;flex-direction:column;gap:10px;">
-      ${macroStats.map(({f,acum,antigo,saldoPorMes,faltasMes,hTMes,hPrevMes})=>{
+      ${macroStats.map(({f,acum,antigo,saldoPorMes,faltasMes,hTMes,hPrevMes,dataLimite,diasRestantes})=>{
         const sc=acum>0?'#22C55E':acum<0?'#E8302F':'var(--text3)';
-        const statusTxt=acum>0?(antigo>0?'Tem horas a favor · vence em breve':'Tem horas a favor'):acum<0?'Está devendo horas':'Em dia';
-        const statusColor=acum>0?(antigo>0?'#F59E0B':'#22C55E'):acum<0?'#E8302F':'var(--text2)';
+        const statusTxt=acum>0?'Tem horas a favor':acum<0?'Está devendo horas':'Em dia';
+        const statusColor=acum>0?'#22C55E':acum<0?'#E8302F':'var(--text2)';
         const ini=f.nome.split(' ').slice(0,2).map(w=>w[0]).join('');
         const acumTxt=acum===0?'00h00':(acum>0?'+':'')+minToHHMM(Math.abs(acum));
 
@@ -1163,9 +1209,18 @@ window.renderDashboard=async function(){
         const pctMes=hPrevMes>0?Math.min(100,Math.round((hTMes/hPrevMes)*100)):0;
         const barColor=pctMes>=95?'#22C55E':pctMes>=80?'#F59E0B':'#E8302F';
 
-        const alertaBox=antigo>0
-          ? `<div style="background:#2d2310;border-radius:6px;padding:6px 10px;font-size:11px;color:#F59E0B;margin-top:10px;">⏰ ${minToHHMM(antigo)} próximas do limite de 60 dias — combine a compensação</div>`
-          : '';
+        // alerta de vencimento com data específica
+        let alertaBox='';
+        if(acum>0 && dataLimite){
+          const urgente = diasRestantes<=15;
+          const corAlerta = urgente ? '#E8302F' : '#F59E0B';
+          const bgAlerta = urgente ? '#2d1515' : '#2d2310';
+          const txtDias = diasRestantes<=0 ? 'PRAZO VENCIDO' : diasRestantes+' dia'+(diasRestantes>1?'s':'')+' restante'+(diasRestantes>1?'s':'');
+          alertaBox=`<div style="background:${bgAlerta};border:1px solid ${corAlerta}44;border-radius:6px;padding:8px 12px;font-size:11px;color:${corAlerta};margin-top:10px;">
+            <div style="font-weight:700;margin-bottom:2px;">⏰ Compensar até ${dataLimite} · ${txtDias}</div>
+            <div style="opacity:0.85;">Combine com ${f.nome.split(' ')[0]} para compensar as horas ou registrar pagamento antes do prazo.</div>
+          </div>`;
+        }
 
         return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
@@ -1317,6 +1372,116 @@ window.excluirAfastamento = async function(docId){
   await loadAfastamentos();
   showToast('Afastamento removido','success');
   renderAfastamentos();
+};
+
+// ── COMPENSAÇÕES DE BANCO DE HORAS ──
+// compensacoesCache[empId] = [{id, data, minutos (+/-), obs}, ...]
+let compensacoesCache = {};
+
+async function loadCompensacoes(){
+  try{
+    const snap = await getDocs(collection(db,'compensacoes'));
+    compensacoesCache = {};
+    snap.forEach(d=>{
+      const c = d.data();
+      if(!compensacoesCache[c.empId]) compensacoesCache[c.empId]=[];
+      compensacoesCache[c.empId].push({id:d.id, data:c.data, minutos:c.minutos, obs:c.obs});
+    });
+  }catch{ compensacoesCache = {}; }
+}
+
+// soma total de compensações de um funcionário (em minutos)
+function totalCompensacoes(empId){
+  const lista = compensacoesCache[empId] || [];
+  return lista.reduce((acc,c)=>acc+c.minutos,0);
+}
+
+// saldo acumulado JÁ considerando compensações
+function saldoComCompensacoes(empId, todosRegistros){
+  return calcSaldoAcumulado(empId, todosRegistros) + totalCompensacoes(empId);
+}
+
+window.atualizarSaldoComp = async function(){
+  const empId = document.getElementById('comp-func').value;
+  const info = document.getElementById('comp-saldo-info');
+  if(!empId){ info.style.display='none'; return; }
+  info.style.display='block';
+  info.innerHTML='<span style="color:var(--text2);">Calculando saldo...</span>';
+  const todos = await getAllRecordsDesdeInicio();
+  const saldo = saldoComCompensacoes(empId, todos);
+  const cor = saldo>0?'#22C55E':saldo<0?'#E8302F':'var(--text2)';
+  const txt = saldo>0?'+'+minToHHMM(saldo)+' a favor':saldo<0?minToHHMM(Math.abs(saldo))+' devendo':'00h00 (zerado)';
+  info.innerHTML=`Saldo atual do funcionário: <b style="color:${cor};">${txt}</b>`;
+  window._saldoCompAtual = saldo;
+};
+
+window.salvarCompensacao = async function(){
+  const empId = document.getElementById('comp-func').value;
+  const tipo = document.getElementById('comp-tipo').value;
+  const horas = parseFloat(document.getElementById('comp-horas').value);
+  const data = document.getElementById('comp-data').value;
+  const obs = document.getElementById('comp-obs').value.trim();
+  if(!empId){ showToast('Selecione o funcionário','error'); return; }
+  if(!horas||horas<=0){ showToast('Informe as horas','error'); return; }
+  if(!data){ showToast('Informe a data do acordo','error'); return; }
+  if(!obs){ showToast('Informe a observação','error'); return; }
+
+  const minutos = tipo==='reduzir' ? -Math.round(horas*60) : Math.round(horas*60);
+
+  // validar: não pode reduzir mais do que o saldo positivo disponível
+  const todos = await getAllRecordsDesdeInicio();
+  const saldoAtual = saldoComCompensacoes(empId, todos);
+  if(tipo==='reduzir' && Math.abs(minutos) > saldoAtual){
+    showToast('Não é possível reduzir '+minToHHMM(Math.abs(minutos))+'. Saldo disponível: '+(saldoAtual>0?minToHHMM(saldoAtual):'00h00'),'error');
+    return;
+  }
+
+  const docId = empId+'_'+data+'_'+Date.now();
+  await setDoc(doc(db,'compensacoes',docId), { empId, data, minutos, obs });
+  if(!compensacoesCache[empId]) compensacoesCache[empId]=[];
+  compensacoesCache[empId].push({id:docId, data, minutos, obs});
+
+  document.getElementById('comp-horas').value='';
+  document.getElementById('comp-obs').value='';
+  showToast('✓ Compensação registrada','success');
+  atualizarSaldoComp();
+  renderCompensacoes();
+};
+
+async function renderCompensacoes(){
+  try{
+    const snap = await getDocs(collection(db,'compensacoes'));
+    const lista = [];
+    snap.forEach(d=>lista.push({id:d.id, ...d.data()}));
+    lista.sort((a,b)=>b.data.localeCompare(a.data));
+    const el = document.getElementById('comp-lista');
+    if(!lista.length){
+      el.innerHTML='<div style="color:var(--text3);font-size:13px;">Nenhuma compensação registrada.</div>';
+      return;
+    }
+    el.innerHTML=lista.map(c=>{
+      const f=FUNCIONARIOS.find(f=>f.id===c.empId);
+      const nome=f?f.nome:c.empId;
+      const pos=c.minutos>=0;
+      const valorTxt=(pos?'+':'-')+minToHHMM(Math.abs(c.minutos));
+      const cor=pos?'#22C55E':'#E8302F';
+      return `<div class="emp-row" style="padding:10px 0;">
+        <div style="flex:1;">
+          <div class="emp-name">${nome} <span style="font-size:13px;font-weight:700;color:${cor};margin-left:6px;">${valorTxt}</span></div>
+          <div class="emp-sub">${formatDate(c.data)} · ${c.obs}</div>
+        </div>
+        <button onclick="excluirCompensacao('${c.id}')" style="margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--text2);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-family:Inter,sans-serif;">Remover</button>
+      </div>`;
+    }).join('');
+  }catch(e){ console.error(e); }
+}
+
+window.excluirCompensacao = async function(docId){
+  await deleteDoc(doc(db,'compensacoes',docId));
+  await loadCompensacoes();
+  showToast('Compensação removida','success');
+  renderCompensacoes();
+  atualizarSaldoComp();
 };
 
 async function loadFeriados(){
@@ -1733,7 +1898,7 @@ window.showToast=function(msg,type='success'){const t=document.getElementById('t
 
 // ── START ──
 initSelects();
-Promise.all([loadFeriados(),loadAfastamentos()]).then(()=>loadTodayRecord());
+Promise.all([loadFeriados(),loadAfastamentos(),loadCompensacoes()]).then(()=>loadTodayRecord());
 </script>
 </body>
 </html>
