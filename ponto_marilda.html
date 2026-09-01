@@ -296,7 +296,7 @@ function calcHoras(rec){const e=timeToMin(rec.entrada),s=timeToMin(rec.saida),sa
 function calcSaldoComTolerancia(horas,jornadaH){const d=Math.round((horas-jornadaH)*60);return Math.abs(d)<=10?0:d;}
 function isWeekend(d){const[y,m,dd]=d.split('-').map(Number);const w=new Date(y,m-1,dd).getDay();return w===0;}
 let abonoMeioSet=new Set();
-function jornadaDia(dateStr){const[y,m,d]=dateStr.split('-').map(Number);const w=new Date(y,m-1,d).getDay();let __b=(w===6?4:8);if(typeof abonoMeioSet!=='undefined'&&abonoMeioSet.has(dateStr))__b=__b/2;return __b;}
+function jornadaDia(dateStr){const[y,m,d]=dateStr.split('-').map(Number);const w=new Date(y,m-1,d).getDay();let __b=(w===0?0:w===6?4:8);if(typeof abonoMeioSet!=='undefined'&&abonoMeioSet.has(dateStr))__b=__b/2;return __b;}
 
 setInterval(()=>{const n=new Date();document.getElementById('clock').textContent=pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());},1000);
 
