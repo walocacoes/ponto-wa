@@ -773,10 +773,14 @@ window.renderHistorico=async function(){
     if(empFilter&&f.id!==empFilter)return;
     const empData=allData[f.id]||{};
     const todosUteis=diasUteisDoMes(month, f.id);
+    const compsMes=(compensacoesCache[f.id]||[]).filter(c=>c.data.startsWith(month));
+    const compDatasMes=new Set(compsMes.map(c=>c.data));
 
     // dias úteis normais
     todosUteis.forEach(date=>{
       const rec=empData[date]||{};
+      // dia coberto por compensação e sem ponto: aparece como Compensação, não como Falta
+      if(!rec.entrada && compDatasMes.has(date)) return;
       const horas=calcHoras(rec),saldoMin=calcSaldoComTolerancia(horas,jornadaDia(date,f.id)),saldo=saldoMin/60;
       const isSab=new Date(date+'T12:00:00').getDay()===6;
       const isDom=new Date(date+'T12:00:00').getDay()===0;
@@ -795,6 +799,13 @@ window.renderHistorico=async function(){
       // saldo da folga a compensar é negativo (jornada do dia)
       const saldoFolga = (isFolgaComp&&!rec.entrada)?-jornadaDia(date,f.id):saldo;
       histCache.push({date,f,rec,horas,saldo:saldoFolga,statusStr});
+    });
+
+    // compensações de banco de horas lançadas no mês
+    compsMes.forEach(c=>{
+      if(dataFilter&&c.data!==dataFilter)return;
+      if(statusFilter&&statusFilter!=='Compensação')return;
+      histCache.push({date:c.data,f,rec:{_compensacao:true,_obs:c.obs,_minutos:c.minutos},horas:0,saldo:0,statusStr:'Compensação'});
     });
 
     // feriados — aparecem uma vez por funcionário
@@ -824,6 +835,20 @@ window.renderHistorico=async function(){
   if(!histCache.length){tbody.innerHTML='<tr><td colspan="10" class="loading">Nenhum registro encontrado</td></tr>';return;}
 
   tbody.innerHTML=histCache.map(({date,f,rec,horas,saldo,statusStr})=>{
+    // linha de compensação de banco de horas
+    if(rec._compensacao){
+      const pos=rec._minutos>=0;
+      const valTxt=(pos?'+':'-')+minToHHMM(Math.abs(Math.round(rec._minutos)));
+      const cor=pos?'#22C55E':'#E8302F';
+      return `<tr style="background:#1a2535 !important;">
+        <td>${formatDate(date)}</td>
+        <td>${f.nome.split(' ')[0]}</td>
+        <td colspan="5" style="color:#60a5fa;font-style:italic;">⚖️ Compensação de banco — ${rec._obs||''}</td>
+        <td style="color:${cor};font-weight:700;">${valTxt}</td>
+        <td><span class="badge bg-blue">⚖️ Compensação</span></td>
+        <td>—</td>
+      </tr>`;
+    }
     // linha de afastamento (férias, licença, atestado)
     if(rec._afastamento){
       return `<tr style="background:#242424 !important;">
@@ -1637,6 +1662,8 @@ function buildRows(empId, allData, month){
     // combinar dias úteis + feriados em ordem cronológica
     const todasDatas=new Set([...todosUteis,...Object.keys(feriadosMap)]);
     const datasOrdenadas=[...todasDatas].sort();
+    const compsMesPDF=(compensacoesCache[f.id]||[]).filter(c=>c.data.startsWith(month));
+    const compDatasPDF=new Set(compsMesPDF.map(c=>c.data));
 
     datasOrdenadas.forEach(date=>{
       if(feriadosMap[date]!==undefined && !todosUteis.includes(date)){
@@ -1647,6 +1674,8 @@ function buildRows(empId, allData, month){
         return;
       }
       const rec=ed[date]||{};
+      // dia coberto por compensação e sem ponto: vira linha de Compensação, não Falta
+      if(!rec.entrada && compDatasPDF.has(date)) return;
       const isFolgaComp=folgasCompensarCache.has(date);
       const horas=calcHoras(rec),saldoMin=calcSaldoComTolerancia(horas,jornadaDia(date,f.id)),saldo=saldoMin/60;
       const isMeioPeriodoFunc=f.id==='F06';
@@ -1691,6 +1720,15 @@ function buildRows(empId, allData, month){
         }
         cur.setDate(cur.getDate()+1);
       }
+    });
+
+    // linhas de compensação de banco de horas no mês
+    compsMesPDF.forEach(c=>{
+      const pos=c.minutos>=0;
+      const valTxt=(pos?'+':'-')+minToHHMM(Math.abs(Math.round(c.minutos)));
+      linhas.push([c.data, formatDate(c.data),
+        f.nome.split(' ')[0]+' '+f.nome.split(' ').slice(-1)[0],
+        '—','—','—','—','—', valTxt, 'Compensacao', c.obs||'']);
     });
 
     // reordenar linhas por data (afastamentos entram fora de ordem)
