@@ -1631,7 +1631,7 @@ function buildRows(empId, allData, month){
   funcs.forEach(f=>{
     const ed=allData[f.id]||{};
     const linhas=[];
-    let totalTrab=0,totalPrev=0,totalFaltas=0,totalEditados=0;
+    let totalTrab=0,totalPrev=0,totalFaltas=0,totalEditados=0,saldoTotMin=0;
     const todosUteis=diasUteisDoMes(month, f.id);
 
     // combinar dias úteis + feriados em ordem cronológica
@@ -1656,6 +1656,7 @@ function buildRows(empId, allData, month){
       if(isFolgaComp && !rec.entrada){
         const jd=jornadaDia(date,f.id);
         totalPrev+=jd; // conta como previsto para o saldo geral ficar correto
+        saldoTotMin-=jd*60; // débito da folga entra no saldo do mês
         const descFolga=(feriadosData[date]&&feriadosData[date].descricao)?feriadosData[date].descricao:'Folga a compensar';
         linhas.push([date, formatDate(date),
           f.nome.split(' ')[0]+' '+f.nome.split(' ').slice(-1)[0],
@@ -1667,7 +1668,7 @@ function buildRows(empId, allData, month){
       if(!rec.entrada){status='Falta';totalFaltas++;}
       else if(isMeioPeriodoFunc||isSabBuild?!rec.saida:!rec.saida_almoco||!rec.retorno_almoco||!rec.saida)status='Incompleto';
       else if(rec._editado){status='Editado';totalEditados++;}
-      if(rec.entrada&&rec.saida){totalTrab+=horas;totalPrev+=jornadaDia(date,f.id);}
+      if(rec.entrada&&rec.saida){totalTrab+=horas;totalPrev+=jornadaDia(date,f.id);saldoTotMin+=saldoMin;}
       linhas.push([date, formatDate(date),
         f.nome.split(' ')[0]+' '+f.nome.split(' ').slice(-1)[0],
         rec.entrada||'—', rec.saida_almoco||'—', rec.retorno_almoco||'—', rec.saida||'—',
@@ -1695,7 +1696,7 @@ function buildRows(empId, allData, month){
     // reordenar linhas por data (afastamentos entram fora de ordem)
     linhas.sort((x,y)=>x[0].localeCompare(y[0]));
 
-    const saldoTotal=totalTrab-totalPrev;
+    const saldoTotal=saldoTotMin/60; // saldo do mês = soma dos dias já com a tolerância de 10 min/dia
 
     // retrospectiva dos últimos 60 dias — saldo por mês
     const hoje60=new Date();
@@ -1888,6 +1889,15 @@ function gerarPDF(resultado, titulo, subtitulo){
     doc.setFontSize(7);
     doc.setTextColor(...scMes);
     doc.text(saldoMesMin>0?'horas a favor do funcionário':saldoMesMin<0?'horas que o funcionário deve':'sem saldo',287-14,finalY+26,{align:'right'});
+
+    // nota da tolerância: explica por que trabalhadas - previstas difere do saldo
+    const rawMesMin=Math.round((resumo.totalTrab-resumo.totalPrev)*60);
+    const tolMin=rawMesMin-saldoMesMin;
+    if(tolMin!==0){
+      doc.setFont('helvetica','italic');doc.setFontSize(6.3);doc.setTextColor(140,140,140);
+      doc.text('Saldo com tolerancia de 10 min/dia (CLT Art. 58). Bruto trab.-prev.: '+(rawMesMin<0?'-':'+')+minToHHMM(Math.abs(rawMesMin))+', sendo '+minToHHMM(Math.abs(tolMin))+' absorvidos pela tolerancia.',18,finalY+33.5);
+      doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(60,60,60);
+    }
 
     // ── BLOCO SECUNDÁRIO: retrospectiva 60 dias (apoio para conciliação) ──
     const retY=finalY+36;
