@@ -1581,64 +1581,91 @@ function gerarPDF(resultado, titulo, subtitulo){
       },
     });
 
-    // bloco de resumo do funcionário
-    const finalY=doc.lastAutoTable.finalY+4;
-    doc.setFillColor(245,245,245);
-    doc.rect(10,finalY,277,22,'F');
-    doc.setDrawColor(220,220,220);
-    doc.rect(10,finalY,277,22,'S');
+    // ── BLOCO PRINCIPAL: SALDO DO MÊS (destaque) ──
+    const finalY=doc.lastAutoTable.finalY+6;
+    const saldoMesMin=Math.round(resumo.saldoTotal*60);
+    const devMes = saldoMesMin < 0;
+    const scMes = saldoMesMin>0?[22,120,60]:saldoMesMin<0?[196,30,32]:[100,100,100];
+
+    // caixa principal
+    doc.setFillColor(248,248,248);
+    doc.rect(10,finalY,277,30,'F');
+    doc.setDrawColor(196,30,32);
+    doc.setLineWidth(0.4);
+    doc.rect(10,finalY,277,30,'S');
+    // barra lateral vermelha
+    doc.setFillColor(196,30,32);
+    doc.rect(10,finalY,3,30,'F');
+
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(9);
+    doc.setTextColor(60,60,60);
+    doc.text('FECHAMENTO DO MÊS',18,finalY+8);
+
+    // números do mês
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(9);
+    doc.setTextColor(60,60,60);
+    doc.text('Horas trabalhadas: '+minToHHMM(Math.round(resumo.totalTrab*60)), 18, finalY+17);
+    doc.text('Horas previstas: '+minToHHMM(Math.round(resumo.totalPrev*60)), 18, finalY+24);
+    doc.text('Faltas: '+resumo.totalFaltas+'     Registros ajustados: '+resumo.totalEditados, 100, finalY+24);
+
+    // saldo do mês em DESTAQUE grande à direita
     doc.setFont('helvetica','bold');
     doc.setFontSize(8);
-    doc.setTextColor(80,80,80);
-    doc.text('RESUMO DO MÊS',14,finalY+6);
+    doc.setTextColor(100,100,100);
+    doc.text('SALDO DO MÊS',287-14,finalY+9,{align:'right'});
+    doc.setFontSize(20);
+    doc.setTextColor(...scMes);
+    const saldoMesTxt=(saldoMesMin>0?'+':saldoMesMin<0?'-':'')+minToHHMM(Math.abs(saldoMesMin));
+    doc.text(saldoMesTxt,287-14,finalY+20,{align:'right'});
     doc.setFont('helvetica','normal');
-    doc.setFontSize(8);
-    const sc=resumo.saldoTotal>=0?[22,120,60]:[196,30,32];
-    doc.text('H. Trabalhadas: '+minToHHMM(Math.round(resumo.totalTrab*60)), 14, finalY+13);
-    doc.text('H. Previstas: '+minToHHMM(Math.round(resumo.totalPrev*60)), 70, finalY+13);
-    doc.setTextColor(...sc);
-    doc.text('Saldo do Mês: '+(resumo.saldoTotal>=0?'+':'')+minToHHMM(Math.abs(Math.round(resumo.saldoTotal*60))), 126, finalY+13);
-    doc.setTextColor(80,80,80);
-    doc.text('Faltas: '+resumo.totalFaltas, 190, finalY+13);
-    doc.text('Registros editados: '+resumo.totalEditados, 220, finalY+13);
+    doc.setFontSize(7);
+    doc.setTextColor(...scMes);
+    doc.text(saldoMesMin>0?'horas a favor do funcionário':saldoMesMin<0?'horas que o funcionário deve':'sem saldo',287-14,finalY+26,{align:'right'});
 
-    // retrospectiva dos últimos 60 dias (banco de horas)
-    const retY=finalY+26;
-    doc.setFillColor(250,247,238);
-    doc.rect(10,retY,277,26,'F');
-    doc.setDrawColor(230,200,140);
-    doc.rect(10,retY,277,26,'S');
+    // ── BLOCO SECUNDÁRIO: retrospectiva 60 dias (apoio para conciliação) ──
+    const retY=finalY+36;
+    doc.setFillColor(252,252,252);
+    doc.rect(10,retY,277,24,'F');
+    doc.setDrawColor(210,210,210);
+    doc.setLineWidth(0.2);
+    doc.rect(10,retY,277,24,'S');
     doc.setFont('helvetica','bold');
-    doc.setFontSize(8);
-    doc.setTextColor(150,100,0);
-    doc.text('BANCO DE HORAS — ÚLTIMOS 60 DIAS (prazo de compensação)',14,retY+6);
+    doc.setFontSize(7.5);
+    doc.setTextColor(120,120,120);
+    doc.text('BANCO DE HORAS — REFERÊNCIA PARA CONCILIAÇÃO (últimos 60 dias)',14,retY+6);
     doc.setFont('helvetica','normal');
-    doc.setTextColor(80,80,80);
+    doc.setFontSize(7);
+    doc.setTextColor(140,140,140);
+    doc.text('Valor informativo para conferência com o controle interno. Não substitui o saldo do mês acima.',14,retY+11);
 
-    // meses da retrospectiva
     const mesesLbl=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
     const mesesKeys=Object.keys(resumo.saldoPorMes60).sort();
     let xPos=14;
+    doc.setFontSize(8);
     if(mesesKeys.length===0){
-      doc.text('Sem movimentação nos últimos 60 dias.',14,retY+15);
+      doc.setTextColor(140,140,140);
+      doc.text('Sem movimentação nos últimos 60 dias.',14,retY+19);
     } else {
       mesesKeys.forEach(mk=>{
         const [yy,mm]=mk.split('-');
         const s=Math.round(resumo.saldoPorMes60[mk]);
         const cor=s>0?[22,120,60]:s<0?[196,30,32]:[120,120,120];
-        doc.setFont('helvetica','bold');doc.setTextColor(80,80,80);
-        doc.text(mesesLbl[parseInt(mm)-1]+'/'+yy,xPos,retY+14);
-        doc.setFont('helvetica','normal');doc.setTextColor(...cor);
-        doc.text((s>0?'+':s<0?'-':'')+minToHHMM(Math.abs(s)),xPos,retY+20);
-        xPos+=32;
+        doc.setFont('helvetica','normal');doc.setTextColor(110,110,110);
+        doc.text(mesesLbl[parseInt(mm)-1]+'/'+yy+':',xPos,retY+19);
+        doc.setFont('helvetica','bold');doc.setTextColor(...cor);
+        doc.text((s>0?'+':s<0?'-':'')+minToHHMM(Math.abs(s)),xPos+16,retY+19);
+        xPos+=48;
       });
     }
-    // saldo acumulado dos 60 dias em destaque à direita
+    // acumulado 60 dias à direita
     const scAcum=resumo.saldoAcum60>0?[22,120,60]:resumo.saldoAcum60<0?[196,30,32]:[120,120,120];
-    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...scAcum);
+    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(110,110,110);
+    doc.text('Acumulado 60 dias:',287-58,retY+19,{align:'right'});
+    doc.setTextColor(...scAcum);
     const acumTxt=(resumo.saldoAcum60>0?'+':resumo.saldoAcum60<0?'-':'')+minToHHMM(Math.abs(resumo.saldoAcum60));
-    const statusAcum=resumo.saldoAcum60>0?'a compensar (a favor do func.)':resumo.saldoAcum60<0?'a compensar (func. deve)':'em dia';
-    doc.text('Saldo 60 dias: '+acumTxt+'  ('+statusAcum+')',287-14,retY+16,{align:'right'});
+    doc.text(acumTxt,287-14,retY+19,{align:'right'});
   });
 
   // rodapé em todas as páginas
