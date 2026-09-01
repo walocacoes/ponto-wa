@@ -105,7 +105,7 @@
     
   </div>
   <div style="display:flex;align-items:center;gap:10px;">
-    <button onclick="location.reload(true)" title="Atualizar página" style="background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);width:32px;height:32px;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;">↻</button>
+    <button onclick="location.replace(location.pathname+'?v='+Date.now())" title="Atualizar página" style="background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);width:32px;height:32px;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;">↻</button>
     <div class="nav-time" id="clock">--:--:--</div>
   </div>
 </nav>
@@ -274,6 +274,21 @@ const firebaseConfig = { apiKey: "AIzaSyCaIDSapH5BVAEKFvK352ktJUT4wrmbvxQ",
     appId: "1:557019570825:web:4fa5fa4456b0c10aa65c58"  };
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+
+// ── AUTO-ATUALIZACAO: sempre carrega a versao mais nova (contorna o cache do GitHub Pages) ──
+const APP_VERSION = 'v2026-09-01-02'; // muda a cada versao publicada
+(async function verificarVersao(){
+  try{
+    if(location.search.indexOf('v=') >= 0) return; // ja veio numa URL sem cache
+    const resp = await fetch(location.pathname + '?_cb=' + Date.now(), { cache: 'no-store' });
+    if(!resp.ok) return;
+    const txt = await resp.text();
+    const m = txt.match(/APP_VERSION = '([^']+)'/);
+    if(m && m[1] !== APP_VERSION){
+      location.replace(location.pathname + '?v=' + encodeURIComponent(m[1]));
+    }
+  }catch(e){}
+})();
 
 const JORNADA_H = 8;
 const DASHBOARD_PWD = 'wa2026';
@@ -782,6 +797,10 @@ window.showToast=function(msg,type='success'){const t=document.getElementById('t
 
 initMonthSelects();
 loadTodayRecord();
+
+// rebusca o registro do dia sempre que a pessoa volta pra tela (reabrir, trocar de aba, voltar do bfcache)
+window.addEventListener('pageshow', function(e){ if(e.persisted) loadTodayRecord(); });
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') loadTodayRecord(); });
 </script>
 </body>
 </html>
