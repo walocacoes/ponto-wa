@@ -427,6 +427,21 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// ── AUTO-ATUALIZACAO: sempre carrega a versao mais nova (contorna o cache do GitHub Pages) ──
+const APP_VERSION = 'v2026-09-01-03'; // muda a cada versao publicada
+(async function verificarVersao(){
+  try{
+    if(location.search.indexOf('v=') >= 0) return; // ja veio numa URL sem cache
+    const resp = await fetch(location.pathname + '?_cb=' + Date.now(), { cache: 'no-store' });
+    if(!resp.ok) return;
+    const txt = await resp.text();
+    const m = txt.match(/APP_VERSION = '([^']+)'/);
+    if(m && m[1] !== APP_VERSION){
+      location.replace(location.pathname + '?v=' + encodeURIComponent(m[1]));
+    }
+  }catch(e){}
+})();
+
 // ── CONSTANTES ──
 const JORNADA_H = 8;
 const DASHBOARD_PWD = 'wa2026';
@@ -442,11 +457,14 @@ const FUNCIONARIOS = [
   { id: 'F04', nome: 'Adrielly Rodrigues Noleto', cpf: '048.730.811-57', cargo: 'Gestora Financeira e Operacional', admissao: '2024-06-10' },
   { id: 'F05', nome: 'Marilda Vieira da Silva', cpf: '051.746.801-84', cargo: 'Auxiliar de Serviços Gerais', admissao: '2026-07-13' },
   { id: 'F06', nome: 'Eveline da Silva Sousa', cpf: '040.209.111-69', cargo: 'Auxiliar de Serviços Gerais', admissao: '2026-07-13' },
+  { id: 'F07', nome: 'Icaro Emanuel dos Santos Barbosa', cpf: '066.367.221-00', cargo: 'Auxiliar de Entrega', admissao: '2026-09-02' },
 ];
 // Jornada individual: Eveline 5h/dia
 const JORNADA_FUNC = { 'F06': 5 };
 // Sem sábado: Eveline
 const SEM_SABADO = new Set(['F06']);
+// Meio período por funcionário em dias específicos (ex: 1o dia trabalhado à tarde)
+const MEIO_PERIODO_FUNC = { 'F07': new Set(['2026-09-02']) };
 
 // ── HELPERS ──
 function pad(n){return String(n).padStart(2,'0');}
@@ -476,6 +494,8 @@ function jornadaDia(dateStr,empId){
   else base=(empId&&typeof JORNADA_FUNC!=='undefined'&&JORNADA_FUNC[empId])||8;
   // meio período abonado: jornada prevista cai pela metade nesse dia
   if(typeof abonoMeioCache!=='undefined'&&abonoMeioCache.has(dateStr)) base=base/2;
+  // meio período individual do funcionário nesse dia
+  if(empId&&typeof MEIO_PERIODO_FUNC!=='undefined'&&MEIO_PERIODO_FUNC[empId]&&MEIO_PERIODO_FUNC[empId].has(dateStr)) base=base/2;
   return base;
 }
 function initials(nome){return nome.split(' ').slice(0,2).map(w=>w[0]).join('');}
@@ -1081,6 +1101,7 @@ const INICIO_SISTEMA = '2026-06-01'; // início da folha de ponto
 const INICIO_FUNC = {
   'F05': '2026-07-13', // Marilda
   'F06': '2026-07-13', // Eveline
+  'F07': '2026-09-02', // Icaro
 };
 
 // Retorna todos os dias úteis (seg-sab) de um mês até hoje
