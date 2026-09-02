@@ -428,7 +428,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ── AUTO-ATUALIZACAO: sempre carrega a versao mais nova (contorna o cache do GitHub Pages) ──
-const APP_VERSION = 'v2026-09-01-03'; // muda a cada versao publicada
+const APP_VERSION = 'v2026-09-01-04'; // muda a cada versao publicada
 (async function verificarVersao(){
   try{
     if(location.search.indexOf('v=') >= 0) return; // ja veio numa URL sem cache
@@ -988,11 +988,19 @@ window.salvarLancamentoForcado=async function(){
 };
 
 async function _executarSalvamento(empId,data,rec){
-  await saveRecord(empId,data,rec);
-  showToast('✓ Ponto salvo com sucesso','success');
-  document.getElementById('lanc-alertas').innerHTML='';
-  ['lanc-entrada','lanc-saida_almoco','lanc-retorno_almoco','lanc-saida'].forEach(id=>{document.getElementById(id).value='';});
-  document.getElementById('lanc-motivo').value='';
+  try{
+    await saveRecord(empId,data,rec);
+    showToast('✓ Ponto salvo com sucesso','success');
+    document.getElementById('lanc-alertas').innerHTML='';
+    ['lanc-entrada','lanc-saida_almoco','lanc-retorno_almoco','lanc-saida'].forEach(id=>{document.getElementById(id).value='';});
+    document.getElementById('lanc-motivo').value='';
+  }catch(e){
+    const msg=(e && e.message) ? e.message : String(e);
+    showToast('Erro ao salvar: '+msg,'error');
+    const alertEl=document.getElementById('lanc-alertas');
+    if(alertEl) alertEl.innerHTML='<div class="alert-box alert-red">⚠️ Não foi possível salvar: '+msg+'</div>';
+    console.error('Erro ao salvar lancamento:', e);
+  }
 }
 
 // Mostrar alertas ao preencher lançamento
