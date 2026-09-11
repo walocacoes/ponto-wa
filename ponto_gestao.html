@@ -138,6 +138,7 @@ tr:hover td{background:var(--surface2);}
     <button class="nav-tab" onclick="showView('historico',this)">Histórico</button>
     <button class="nav-tab" onclick="showView('lancamento',this)">Lançamento</button>
     <button class="nav-tab" onclick="askPassword()">Dashboard</button>
+    <button class="nav-tab" onclick="askPassword('extras')">Hora Extra</button>
   </div>
   <div class="nav-time" id="clock">--:--:--</div>
 </nav>
@@ -382,6 +383,26 @@ tr:hover td{background:var(--surface2);}
   </div>
 </div>
 
+<div class="view" id="view-extras">
+  <div class="section-title">Hora Extra — Lançamento e Balanço</div>
+  <div class="section-sub">Só você vê isto. Os funcionários não têm acesso. — <span id="extras-month-label"></span></div>
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-title">Lançar hora extra</div>
+    <div class="inp-wrap"><div class="inp-label">Funcionário</div><select class="sel" id="ex-emp"></select></div>
+    <div class="inp-wrap"><div class="inp-label">Data</div><input class="sel" type="date" id="ex-data"></div>
+    <div style="display:flex;gap:10px;">
+      <div class="inp-wrap" style="flex:1;"><div class="inp-label">Início</div><input class="sel" type="time" id="ex-inicio"></div>
+      <div class="inp-wrap" style="flex:1;"><div class="inp-label">Fim</div><input class="sel" type="time" id="ex-fim"></div>
+    </div>
+    <div class="inp-wrap"><div class="inp-label">Descrição (opcional)</div><input class="sel" type="text" id="ex-desc" placeholder="Ex: entrega de evento"></div>
+    <button class="btn" onclick="salvarHoraExtra()" style="width:100%;">Registrar hora extra</button>
+    <div id="ex-alerta" style="margin-top:10px;"></div>
+  </div>
+  <div class="month-row"><select id="extras-month" onchange="renderExtras()"></select></div>
+  <div id="extras-content"><div class="loading">Carregando...</div></div>
+  <div style="font-size:11px;color:var(--text2);margin-top:14px;line-height:1.5;">Cálculo: hora normal = salário ÷ 220. Extra em dia útil +50%, domingo/feriado +100%, adicional noturno +20% após 22h com hora reduzida de 52min30 (CLT Art. 59 e 73). Valor estimado; a folha é fechada pela contabilidade.</div>
+</div>
+
 <!-- MODAL PONTO -->
 <div class="modal-bg" id="modal-bg">
   <div class="modal">
@@ -428,7 +449,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ── AUTO-ATUALIZACAO: sempre carrega a versao mais nova (contorna o cache do GitHub Pages) ──
-const APP_VERSION = 'v2026-09-01-04'; // muda a cada versao publicada
+const APP_VERSION = 'v2026-09-02-09'; // muda a cada versao publicada
 (async function verificarVersao(){
   try{
     if(location.search.indexOf('v=') >= 0) return; // ja veio numa URL sem cache
@@ -2097,16 +2118,83 @@ window.exportarPDFHistorico=async function(){
 };
 
 // ── SENHA ──
-window.askPassword=function(){document.getElementById('pwd-input').value='';document.getElementById('pwd-error').textContent='';document.getElementById('pwd-modal-bg').classList.add('open');setTimeout(()=>document.getElementById('pwd-input').focus(),100);};
+// ── HORA EXTRA (lançamento manual pela gestão — uso interno) ──
+const SALARIOS = { 'F03': 2500, 'F04': 2500, 'F07': 1621 };
+function timeToMinEx(t){const[h,m]=t.split(':').map(Number);return h*60+m;}
+function calcValorExtra(salario, dataStr, inicio, fim, ehFeriado){
+  const vh=salario/220;
+  const w=new Date(dataStr+'T12:00:00').getDay();
+  const domFer=(w===0)||ehFeriado;
+  let ini=timeToMinEx(inicio), f=timeToMinEx(fim);
+  if(f<=ini)f+=1440;
+  let minDia=0,minNoite=0;
+  for(let t=ini;t<f;t++){const h=t%1440;const noite=(h>=1320)||(h<300);if(noite)minNoite++;else minDia++;}
+  const hDia=minDia/60, hNoite=minNoite/52.5;
+  const multDia=domFer?2.0:1.5, multNoite=domFer?2.4:1.8;
+  return {minDia,minNoite,hDia,hNoite,domFer,total:hDia*vh*multDia+hNoite*vh*multNoite};
+}
+function brl(v){return 'R$ '+v.toFixed(2).replace('.',',');}
+window.salvarHoraExtra=async function(){
+  const empId=document.getElementById('ex-emp').value;
+  const data=document.getElementById('ex-data').value;
+  const inicio=document.getElementById('ex-inicio').value;
+  const fim=document.getElementById('ex-fim').value;
+  const desc=document.getElementById('ex-desc').value.trim();
+  const al=document.getElementById('ex-alerta');
+  if(!empId||!data||!inicio||!fim){al.innerHTML='<div class="alert-box alert-red">Preencha funcionário, data, início e fim.</div>';return;}
+  try{
+    const id=empId+'_'+data+'_'+inicio.replace(/:/g,'');
+    await setDoc(doc(db,'servicos_extra',id),{empId,data,inicio,fim,descricao:desc,fonte:'gestao',criado_em:new Date().toLocaleString('pt-BR')});
+    al.innerHTML='<div class="alert-box" style="background:#16311f;color:#22C55E;border:1px solid #22C55E44;">Hora extra registrada.</div>';
+    document.getElementById('ex-inicio').value='';document.getElementById('ex-fim').value='';document.getElementById('ex-desc').value='';
+    renderExtras();
+  }catch(e){al.innerHTML='<div class="alert-box alert-red">Erro ao salvar: '+(e.message||e)+'</div>';}
+};
+window.removerHoraExtra=async function(id){
+  if(!confirm('Remover este lançamento de hora extra?'))return;
+  try{await deleteDoc(doc(db,'servicos_extra',id));renderExtras();}catch(e){alert('Erro ao remover: '+(e.message||e));}
+};
+window.renderExtras=async function(){
+  const empSel=document.getElementById('ex-emp');
+  if(!empSel.options.length){Object.keys(SALARIOS).forEach(fid=>{const f=FUNCIONARIOS.find(x=>x.id===fid);const o=document.createElement('option');o.value=fid;o.textContent=(f?f.nome:fid);empSel.appendChild(o);});}
+  const sel=document.getElementById('extras-month');
+  if(!sel.options.length){const now=new Date();for(let i=0;i<6;i++){const d=new Date(now.getFullYear(),now.getMonth()-i,1);const v=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');const o=document.createElement('option');o.value=v;o.textContent=monthLabel(v);sel.appendChild(o);}}
+  if(!document.getElementById('ex-data').value){document.getElementById('ex-data').value=todayStr();}
+  const month=sel.value;
+  document.getElementById('extras-month-label').textContent=monthLabel(month);
+  const cont=document.getElementById('extras-content');
+  cont.innerHTML='<div class="loading">Carregando...</div>';
+  await loadFeriados();
+  let sessoes=[];
+  try{const snap=await getDocs(collection(db,'servicos_extra'));snap.forEach(d=>{const x=d.data();if(x.data&&x.data.startsWith(month)&&x.fim)sessoes.push(Object.assign({_id:d.id},x));});}catch(e){}
+  let html='';
+  Object.keys(SALARIOS).forEach(fid=>{
+    const f=FUNCIONARIOS.find(x=>x.id===fid); const nome=f?f.nome:fid;
+    const lista=sessoes.filter(s=>s.empId===fid).sort((a,b)=>(a.data+a.inicio).localeCompare(b.data+b.inicio));
+    let totMin=0,totVal=0,linhas='';
+    lista.forEach(s=>{
+      const r=calcValorExtra(SALARIOS[fid],s.data,s.inicio,s.fim,feriadosCache.has(s.data));
+      totMin+=(r.minDia+r.minNoite);totVal+=r.total;
+      const tipo=r.domFer?'Dom/Feriado':(r.minNoite>0?'Diurno+Noturno':'Diurno');
+      linhas+='<tr><td>'+formatDate(s.data)+'</td><td>'+s.inicio+'–'+s.fim+'</td><td>'+minToHHMM(r.minDia+r.minNoite)+'</td><td>'+tipo+'</td><td style="text-align:right;font-weight:600;color:#22C55E;">'+brl(r.total)+'</td><td style="text-align:right;"><span onclick="removerHoraExtra(\''+s._id+'\')" style="cursor:pointer;color:#E8302F;font-weight:700;">✕</span></td></tr>';
+      if(s.descricao) linhas+='<tr><td colspan="6" style="font-size:10px;color:var(--text2);padding-top:0;">• '+s.descricao+'</td></tr>';
+    });
+    html+='<div class="card" style="margin-bottom:14px;"><div class="card-title">'+nome+' — salário '+brl(SALARIOS[fid])+' (hora '+brl(SALARIOS[fid]/220)+')</div>'+(lista.length?'<table class="hist-table" style="width:100%;font-size:12px;"><thead><tr><td>Data</td><td>Horário</td><td>Horas</td><td>Tipo</td><td style="text-align:right;">Valor</td><td></td></tr></thead><tbody>'+linhas+'</tbody></table><div style="text-align:right;margin-top:10px;font-size:15px;font-weight:700;">Total do mês: <span style="color:#22C55E;">'+brl(totVal)+'</span> · '+minToHHMM(totMin)+'</div>':'<div style="color:var(--text2);font-size:13px;">Nenhuma hora extra neste mês.</div>')+'</div>';
+  });
+  cont.innerHTML=html;
+};
+
+window.askPassword=function(target){window._pwdTarget=target||'dashboard';document.getElementById('pwd-input').value='';document.getElementById('pwd-error').textContent='';document.getElementById('pwd-modal-bg').classList.add('open');setTimeout(()=>document.getElementById('pwd-input').focus(),100);};
 window.closePwdModal=function(){document.getElementById('pwd-modal-bg').classList.remove('open');};
 window.confirmPassword=function(){
   if(document.getElementById('pwd-input').value===DASHBOARD_PWD){
     closePwdModal();
+    const tgt=window._pwdTarget||'dashboard';
     document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
-    document.querySelectorAll('.nav-tab')[4].classList.add('active');
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-    document.getElementById('view-dashboard').classList.add('active');
-    renderDashboard();
+    document.getElementById('view-'+tgt).classList.add('active');
+    if(tgt==='dashboard'){document.querySelectorAll('.nav-tab')[4].classList.add('active');renderDashboard();}
+    else if(tgt==='extras'){document.querySelectorAll('.nav-tab')[5].classList.add('active');renderExtras();}
   }else{document.getElementById('pwd-error').textContent='Senha incorreta.';document.getElementById('pwd-input').value='';document.getElementById('pwd-input').focus();}
 };
 
