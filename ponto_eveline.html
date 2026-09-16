@@ -276,7 +276,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ── AUTO-ATUALIZACAO: sempre carrega a versao mais nova (contorna o cache do GitHub Pages) ──
-const APP_VERSION = 'v2026-09-01-02'; // muda a cada versao publicada
+const APP_VERSION = 'v2026-09-04-10'; // muda a cada versao publicada
 (async function verificarVersao(){
   try{
     if(location.search.indexOf('v=') >= 0) return; // ja veio numa URL sem cache
@@ -414,9 +414,10 @@ window.openModal=function(type){
 window.closeModal=function(){clearInterval(window._mi);document.getElementById('modal-bg').classList.remove('open');pendingType=null;};
 // ── geolocalização ──
 const LOCAIS = [
-  { nome: 'Loja WA',    lat: -7.1993882,  lng: -48.2006401, raio: 100 },
+  { nome: 'Loja WA',    lat: -7.1993882,  lng: -48.2006401, raio: 150 },
   { nome: 'Casa WA',    lat: -7.1982159,  lng: -48.2322757, raio: 200 },
 ];
+const TOLERANCIA_GPS = 300; // margem de erro do GPS perdoada (metros)
 
 function distancia(lat1,lng1,lat2,lng2){
   const R=6371000,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
@@ -427,14 +428,28 @@ function distancia(lat1,lng1,lat2,lng2){
 function getPosicao(){
   return new Promise((res,rej)=>{
     if(!navigator.geolocation){rej(new Error('GPS não disponível neste dispositivo'));return;}
-    navigator.geolocation.getCurrentPosition(res,rej,{enableHighAccuracy:true,timeout:10000});
+    let melhor=null, terminou=false, id=null, tmr=null;
+    const finalizar=(erro)=>{
+      if(terminou)return; terminou=true;
+      try{if(id!==null)navigator.geolocation.clearWatch(id);}catch(e){}
+      if(tmr)clearTimeout(tmr);
+      if(melhor) res(melhor); else rej(erro||new Error('Não foi possível obter a localização'));
+    };
+    // espera o GPS travar de verdade: coleta leituras e fica com a de melhor precisão
+    id=navigator.geolocation.watchPosition(
+      p=>{ if(!melhor||p.coords.accuracy<melhor.coords.accuracy)melhor=p; if(p.coords.accuracy<=60)finalizar(); },
+      e=>{ if(!melhor)finalizar(e); },
+      {enableHighAccuracy:true,maximumAge:0,timeout:12000}
+    );
+    tmr=setTimeout(()=>finalizar(), 10000); // até 10s; depois usa a melhor leitura obtida
   });
 }
 
-function verificarLocal(lat,lng){
+function verificarLocal(lat,lng,acc){
+  const margem=Math.min(acc||0,TOLERANCIA_GPS);
   for(const local of LOCAIS){
     const dist=distancia(lat,lng,local.lat,local.lng);
-    if(dist<=local.raio) return local;
+    if(dist-margem<=local.raio) return local;
   }
   return null;
 }
@@ -450,7 +465,7 @@ window.confirmPunch=async function(){
   showToast('Verificando localização...','success');
   try{
     const pos=await getPosicao();
-    const localEncontrado=verificarLocal(pos.coords.latitude,pos.coords.longitude);
+    const localEncontrado=verificarLocal(pos.coords.latitude,pos.coords.longitude,pos.coords.accuracy);
     if(!localEncontrado){
       let menorDist=Infinity,nomeProximo='';
       for(const l of LOCAIS){const d=distancia(pos.coords.latitude,pos.coords.longitude,l.lat,l.lng);if(d<menorDist){menorDist=d;nomeProximo=l.nome;}}
