@@ -449,7 +449,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ── AUTO-ATUALIZACAO: sempre carrega a versao mais nova (contorna o cache do GitHub Pages) ──
-const APP_VERSION = 'v2026-09-22-12'; // muda a cada versao publicada
+const APP_VERSION = 'v2026-09-22-13'; // muda a cada versao publicada
 (async function verificarVersao(){
   try{
     if(location.search.indexOf('v=') >= 0) return; // ja veio numa URL sem cache
@@ -604,9 +604,11 @@ function initSelects(){
   for(let i=0;i<6;i++){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);months.push(d.getFullYear()+'-'+pad(d.getMonth()+1));}
 
   FUNCIONARIOS.forEach(f=>{
+    const desligado=estaDesligado(f.id);
     ['emp-select','hist-emp-select','lanc-emp','dash-exp-emp','afast-func','comp-func'].forEach(id=>{
+      if(desligado && id!=='hist-emp-select' && id!=='dash-exp-emp') return;
       const el=document.getElementById(id);if(!el)return;
-      const o=document.createElement('option');o.value=f.id;o.textContent=f.nome;el.appendChild(o);
+      const o=document.createElement('option');o.value=f.id;o.textContent=desligado?(f.nome+' (desligada)'):f.nome;el.appendChild(o);
     });
   });
 
@@ -737,7 +739,7 @@ window.renderMonitor=async function(){
   document.getElementById('monitor-cards').innerHTML='<div class="loading">Carregando...</div>';
   document.getElementById('monitor-alertas').innerHTML='<div class="loading">Carregando...</div>';
 
-  const registros=await Promise.all(FUNCIONARIOS.map(f=>getRecord(f.id,today).then(r=>({f,r}))));
+  const registros=await Promise.all(FUNCIONARIOS.filter(f=>!estaDesligado(f.id)).map(f=>getRecord(f.id,today).then(r=>({f,r}))));
   const alertas=[];
 
   const cards=registros.map(({f,r})=>{
@@ -1138,6 +1140,8 @@ const INICIO_FUNC = {
 const FIM_FUNC = {
   'F06': '2026-09-19', // Eveline (desligada)
 };
+// funcionário desligado (só aparece no histórico e na exportação de PDF, some das telas operacionais)
+function estaDesligado(empId){ return typeof FIM_FUNC!=='undefined' && FIM_FUNC[empId] && todayStr() > FIM_FUNC[empId]; }
 
 // Retorna todos os dias úteis (seg-sab) de um mês até hoje
 function diasUteisDoMes(month, empId){
@@ -1174,7 +1178,7 @@ window.renderDashboard=async function(){
   const ontem = new Date(); ontem.setDate(ontem.getDate()-1); ontem.setHours(23,59,59);
 
   let tF=0,tE=0,tN=0,tR=0;
-  const stats=FUNCIONARIOS.map(f=>{
+  const stats=FUNCIONARIOS.filter(f=>!estaDesligado(f.id)).map(f=>{
     const ed=allData[f.id]||{};
     let hT=0,fa=0,sM=0;
     const todosUteis=diasUteisDoMes(month, f.id);
@@ -1233,7 +1237,7 @@ window.renderDashboard=async function(){
   const ultimos3=[];
   for(let i=2;i>=0;i--){const d=new Date(hojeD.getFullYear(),hojeD.getMonth()-i,1);ultimos3.push({key:d.getFullYear()+'-'+pad(d.getMonth()+1),label:mesesLabels[d.getMonth()]});}
 
-  const macroStats = FUNCIONARIOS.map(f=>{
+  const macroStats = FUNCIONARIOS.filter(f=>!estaDesligado(f.id)).map(f=>{
     const ed=todosRegistros[f.id]||{};
     let acum=0,antigo=0,faltasMes=0,hTMes=0,hPrevMes=0;
     const saldoPorMes={};
