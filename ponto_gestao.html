@@ -449,7 +449,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ── AUTO-ATUALIZACAO: sempre carrega a versao mais nova (contorna o cache do GitHub Pages) ──
-const APP_VERSION = 'v2026-09-02-09'; // muda a cada versao publicada
+const APP_VERSION = 'v2026-09-22-12'; // muda a cada versao publicada
 (async function verificarVersao(){
   try{
     if(location.search.indexOf('v=') >= 0) return; // ja veio numa URL sem cache
@@ -479,6 +479,7 @@ const FUNCIONARIOS = [
   { id: 'F05', nome: 'Marilda Vieira da Silva', cpf: '051.746.801-84', cargo: 'Auxiliar de Serviços Gerais', admissao: '2026-07-13' },
   { id: 'F06', nome: 'Eveline da Silva Sousa', cpf: '040.209.111-69', cargo: 'Auxiliar de Serviços Gerais', admissao: '2026-07-13' },
   { id: 'F07', nome: 'Icaro Emanuel dos Santos Barbosa', cpf: '066.367.221-00', cargo: 'Auxiliar de Entrega', admissao: '2026-09-02' },
+  { id: 'F08', nome: 'Nayara Ferreira Rodrigues Duailibe', cpf: '024.978.961-27', cargo: 'Auxiliar de Serviços Gerais', admissao: '2026-09-22' },
 ];
 // Jornada individual: Eveline 5h/dia
 const JORNADA_FUNC = { 'F06': 5 };
@@ -1131,6 +1132,11 @@ const INICIO_FUNC = {
   'F05': '2026-07-13', // Marilda
   'F06': '2026-07-13', // Eveline
   'F07': '2026-09-02', // Icaro
+  'F08': '2026-09-22', // Nayara
+};
+// Data de saída (desligamento) — para de contar ponto/falta a partir do dia seguinte, mas mantém o histórico
+const FIM_FUNC = {
+  'F06': '2026-09-19', // Eveline (desligada)
 };
 
 // Retorna todos os dias úteis (seg-sab) de um mês até hoje
@@ -1139,6 +1145,8 @@ function diasUteisDoMes(month, empId){
   const hoje = new Date();
   const inicioStr = (empId && INICIO_FUNC && INICIO_FUNC[empId]) || INICIO_SISTEMA;
   const inicio = new Date(inicioStr+'T12:00:00');
+  const fimStr = (empId && typeof FIM_FUNC !== 'undefined' && FIM_FUNC[empId]) || null;
+  const fim = fimStr ? new Date(fimStr+'T23:59:59') : null;
   // Eveline não trabalha sábado
   const semSabado = empId && typeof SEM_SABADO !== 'undefined' && SEM_SABADO.has(empId);
   const dias = [];
@@ -1147,7 +1155,7 @@ function diasUteisDoMes(month, empId){
     const dt = new Date(y, m-1, d, 12);
     const w = dt.getDay();
     const ds = `${y}-${pad(m)}-${pad(d)}`;
-    if(w>=1 && w<=6 && dt <= hoje && dt >= inicio && !feriadosCache.has(ds)){
+    if(w>=1 && w<=6 && dt <= hoje && (!fim || dt <= fim) && dt >= inicio && !feriadosCache.has(ds)){
       if(semSabado && w===6) continue; // pula sábado para quem não trabalha
       if(afastamentoNaData(empId, ds)) continue; // funcionário afastado (férias/licença/atestado)
       dias.push(ds);

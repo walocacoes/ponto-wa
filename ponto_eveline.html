@@ -276,7 +276,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ── AUTO-ATUALIZACAO: sempre carrega a versao mais nova (contorna o cache do GitHub Pages) ──
-const APP_VERSION = 'v2026-09-04-10'; // muda a cada versao publicada
+const APP_VERSION = 'v2026-09-22-12'; // muda a cada versao publicada
 (async function verificarVersao(){
   try{
     if(location.search.indexOf('v=') >= 0) return; // ja veio numa URL sem cache
@@ -417,7 +417,8 @@ const LOCAIS = [
   { nome: 'Loja WA',    lat: -7.1993882,  lng: -48.2006401, raio: 150 },
   { nome: 'Casa WA',    lat: -7.1982159,  lng: -48.2322757, raio: 200 },
 ];
-const TOLERANCIA_GPS = 300; // margem de erro do GPS perdoada (metros)
+const TOLERANCIA_GPS = 300;
+const FIM_CONTRATO = '2026-09-19'; // desligada nesta data // margem de erro do GPS perdoada (metros)
 
 function distancia(lat1,lng1,lat2,lng2){
   const R=6371000,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
@@ -460,6 +461,7 @@ window.confirmPunch=async function(){
   const pt=pendingType;
   closeModal();
   if(!pt)return;
+  if(todayStr() > FIM_CONTRATO){ showToast('Contrato encerrado. Não é mais possível registrar ponto.','error'); return; }
 
   // verificar localização
   showToast('Verificando localização...','success');
