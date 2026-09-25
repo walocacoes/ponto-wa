@@ -276,7 +276,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ── AUTO-ATUALIZACAO: sempre carrega a versao mais nova (contorna o cache do GitHub Pages) ──
-const APP_VERSION = 'v2026-09-22-14'; // muda a cada versao publicada
+const APP_VERSION = 'v2026-09-22-15'; // muda a cada versao publicada
 (async function verificarVersao(){
   try{
     if(location.search.indexOf('v=') >= 0) return; // ja veio numa URL sem cache
@@ -533,7 +533,7 @@ window.renderHistorico=async function(){
   // calcular saldo do mês e acumulado (só para funcionários, não gestão)
   if(!IS_GESTAO){
     const ontem=new Date();ontem.setDate(ontem.getDate()-1);ontem.setHours(23,59,59);
-    let totalTrab=0, totalPrev=0;
+    let totalTrab=0, totalPrev=0, saldoMesMin=0;
     dates.forEach(date=>{
       const dt=new Date(date+'T12:00:00');
       if(dt>ontem)return; // ignora hoje e dias futuros
@@ -541,8 +541,9 @@ window.renderHistorico=async function(){
       if(!rec||!rec.entrada||!rec.saida)return; // ignora dias incompletos
       totalTrab+=calcHoras(rec);
       totalPrev+=jornadaDia(date);
+      saldoMesMin+=calcSaldoComTolerancia(calcHoras(rec),jornadaDia(date)); // saldo do mês com tolerância de 10min/dia
     });
-    const saldoMin=Math.round((totalTrab-totalPrev)*60);
+    const saldoMin=Math.round(saldoMesMin);
     const card=document.getElementById('saldo-card');
     if(card){
       card.style.display='block';
