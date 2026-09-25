@@ -276,7 +276,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ── AUTO-ATUALIZACAO: sempre carrega a versao mais nova (contorna o cache do GitHub Pages) ──
-const APP_VERSION = 'v2026-09-04-10'; // muda a cada versao publicada
+const APP_VERSION = 'v2026-09-22-14'; // muda a cada versao publicada
 (async function verificarVersao(){
   try{
     if(location.search.indexOf('v=') >= 0) return; // ja veio numa URL sem cache
@@ -657,6 +657,7 @@ window.renderHistorico=async function(){
   feriadosDoMes.forEach(x=>cobertos.add(x.date));
   afastamentosDoMes.forEach(x=>cobertos.add(x.date));
   compensacoesDoMes.forEach(x=>cobertos.add(x.date));
+  try{ const _bsnap=await getDocs(collection(db,'faltas_baixadas')); _bsnap.forEach(d=>{const x=d.data();if(x.empId===empId&&x.data)cobertos.add(x.data);}); }catch(e){}
   const ontemFalta=new Date();ontemFalta.setDate(ontemFalta.getDate()-1);ontemFalta.setHours(23,59,59);
   const [yF,mF]=monthCapturado.split('-').map(Number);
   const ultDiaF=new Date(yF,mF,0).getDate();

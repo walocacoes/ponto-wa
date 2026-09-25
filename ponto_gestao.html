@@ -449,7 +449,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ── AUTO-ATUALIZACAO: sempre carrega a versao mais nova (contorna o cache do GitHub Pages) ──
-const APP_VERSION = 'v2026-09-22-13'; // muda a cada versao publicada
+const APP_VERSION = 'v2026-09-22-14'; // muda a cada versao publicada
 (async function verificarVersao(){
   try{
     if(location.search.indexOf('v=') >= 0) return; // ja veio numa URL sem cache
@@ -799,6 +799,14 @@ window.renderMonitor=async function(){
 
 // ── HISTÓRICO ──
 let histCache=[];
+window.darBaixaFalta=async function(empId,data){
+  if(!confirm('Dar baixa nesta falta de '+data.split('-').reverse().join('/')+'?\n\nEla deixa de aparecer para o funcionário e fica marcada como baixada aqui no painel.'))return;
+  try{ await setDoc(doc(db,'faltas_baixadas',empId+'_'+data),{empId,data,baixado_em:new Date().toLocaleString('pt-BR')}); await loadFeriados(); renderHistorico(); }catch(e){ alert('Erro ao dar baixa: '+(e.message||e)); }
+};
+window.desfazerBaixaFalta=async function(empId,data){
+  if(!confirm('Desfazer a baixa? A falta volta a aparecer para o funcionário.'))return;
+  try{ await deleteDoc(doc(db,'faltas_baixadas',empId+'_'+data)); await loadFeriados(); renderHistorico(); }catch(e){ alert('Erro ao desfazer: '+(e.message||e)); }
+};
 window.renderHistorico=async function(){
   const empFilter=document.getElementById('hist-emp-select').value;
   const month=document.getElementById('hist-month').value;
@@ -834,7 +842,7 @@ window.renderHistorico=async function(){
       let statusStr='';
       if(rec._compensacao)statusStr='Compensação';
       else if(isFolgaComp&&!rec.entrada)statusStr='FolgaCompensar';
-      else if(!rec.entrada)statusStr='Falta';
+      else if(!rec.entrada)statusStr=faltasBaixadasCache.has(f.id+'_'+date)?'FaltaBaixada':'Falta';
       else if(!complete)statusStr='Incompleto';
       else statusStr='OK';
       if(rec._editado&&!rec._compensacao)statusStr='Editado';
@@ -908,12 +916,17 @@ window.renderHistorico=async function(){
       'OK':'<span class="badge bg-green">OK</span>',
       'Incompleto':'<span class="badge bg-yellow">Incompleto</span>',
       'Falta':'<span class="badge bg-red">Falta</span>',
+      'FaltaBaixada':'<span class="badge" style="background:#2A2A2A;color:#A0A0A0;border:1px solid #3A3A3A;">Baixada</span>',
       'Editado':'<span class="badge bg-orange">✏️ Editado</span>',
       'Feriado':'<span class="badge bg-blue">🎉 Feriado</span>',
       'Compensação':'<span class="badge bg-blue">⏱ Compensação</span>',
       'FolgaCompensar':'<span class="badge" style="background:#2d2310;color:#F59E0B;border:1px solid #F59E0B44;">⏰ A compensar</span>',
     }[statusStr]||'';
-    const auditoria=rec._editado
+    const auditoria=statusStr==='Falta'
+      ? `<span onclick="darBaixaFalta('${f.id}','${date}')" style="cursor:pointer;font-size:10px;color:#F59E0B;text-decoration:underline;">dar baixa</span>`
+      : statusStr==='FaltaBaixada'
+      ? `<span onclick="desfazerBaixaFalta('${f.id}','${date}')" style="cursor:pointer;font-size:10px;color:#A0A0A0;text-decoration:underline;">desfazer</span>`
+      : rec._editado
       ? `<span style="font-size:10px;color:var(--text3);">${rec._editado_por||'gestão'}<br>${rec._editado_em||''}</span>`
       : '—';
     const incs=verificarInconsistencias(rec);
@@ -1260,7 +1273,7 @@ window.renderDashboard=async function(){
 
     // faltas do mês selecionado
     const diasMes=diasUteisDoMes(monthDash,f.id);
-    diasMes.forEach(d=>{const dt=new Date(d+'T12:00:00');if(dt>ontemMacro)return;const r=ed[d];if(!r||!r.entrada)faltasMes++;});
+    diasMes.forEach(d=>{const dt=new Date(d+'T12:00:00');if(dt>ontemMacro)return;const r=ed[d];if((!r||!r.entrada)&&!faltasBaixadasCache.has(f.id+'_'+d))faltasMes++;});
 
     // descontar folgas a compensar do acumulado
     folgasCompensarCache.forEach(ds=>{
@@ -1427,6 +1440,7 @@ function renderGrafico(stats){
 let feriadosCache = new Set();       // não conta como nada
 let folgasCompensarCache = new Set(); // gera saldo negativo (dia inteiro)
 let abonoMeioCache = new Set();       // meio período abonado: jornada do dia cai pela metade
+let faltasBaixadasCache = new Set(); // faltas já descontadas (baixadas) — não contam nem aparecem para o funcionário
 let folgaMeioCompCache = new Set();   // meio período a compensar: o próprio ponto gera o débito
 let feriadosData = {};               // guarda tipo e descrição
 
@@ -1629,6 +1643,8 @@ window.excluirCompensacao = async function(docId){
 
 async function loadFeriados(){
   try{
+    faltasBaixadasCache = new Set();
+    try{ const bsnap = await getDocs(collection(db,'faltas_baixadas')); bsnap.forEach(d=>{const x=d.data();if(x.empId&&x.data)faltasBaixadasCache.add(x.empId+'_'+x.data);}); }catch(e){}
     const snap = await getDocs(collection(db,'feriados'));
     feriadosCache = new Set();
     folgasCompensarCache = new Set();
@@ -1756,7 +1772,7 @@ function buildRows(empId, allData, month){
       }
 
       let status='OK';
-      if(!rec.entrada){status='Falta';totalFaltas++;}
+      if(!rec.entrada){ if(faltasBaixadasCache.has(f.id+'_'+date)){status='Baixada';} else {status='Falta';totalFaltas++;} }
       else if(isMeioPeriodoFunc||isSabBuild?!rec.saida:!rec.saida_almoco||!rec.retorno_almoco||!rec.saida)status='Incompleto';
       else if(rec._editado){status='Editado';totalEditados++;}
       if(rec.entrada&&rec.saida){totalTrab+=horas;totalPrev+=jornadaDia(date,f.id);saldoTotMin+=saldoMin;}
