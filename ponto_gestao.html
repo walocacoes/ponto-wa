@@ -449,7 +449,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ── AUTO-ATUALIZACAO: sempre carrega a versao mais nova (contorna o cache do GitHub Pages) ──
-const APP_VERSION = 'v2026-09-22-14'; // muda a cada versao publicada
+const APP_VERSION = 'v2026-09-28-17'; // muda a cada versao publicada
 (async function verificarVersao(){
   try{
     if(location.search.indexOf('v=') >= 0) return; // ja veio numa URL sem cache
@@ -1964,7 +1964,9 @@ function gerarPDF(resultado, titulo, subtitulo){
     });
 
     // ── BLOCO PRINCIPAL: SALDO DO MÊS (destaque) ──
-    const finalY=doc.lastAutoTable.finalY+6;
+    let finalY=doc.lastAutoTable.finalY+6;
+    // se o fechamento + 60 dias + aceite não couberem na página, quebra para a próxima
+    if(finalY + 92 > 202){ doc.addPage(); finalY = 20; }
     const saldoMesMin=Math.round(resumo.saldoTotal*60);
     const devMes = saldoMesMin < 0;
     const scMes = saldoMesMin>0?[22,120,60]:saldoMesMin<0?[196,30,32]:[100,100,100];
