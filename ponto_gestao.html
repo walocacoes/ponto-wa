@@ -449,7 +449,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ── AUTO-ATUALIZACAO: sempre carrega a versao mais nova (contorna o cache do GitHub Pages) ──
-const APP_VERSION = 'v2026-09-28-17'; // muda a cada versao publicada
+const APP_VERSION = 'v2026-09-28-18'; // muda a cada versao publicada
 (async function verificarVersao(){
   try{
     if(location.search.indexOf('v=') >= 0) return; // ja veio numa URL sem cache
@@ -1853,12 +1853,42 @@ function buildRows(empId, allData, month){
       saldoPorMes60[mk]=(saldoPorMes60[mk]||0)+cp.minutos;
     });
 
+    // === ACUMULADO TOTAL (desde a admissão), por mês — igual ao banco do site ===
+    const inicioStrT=(INICIO_FUNC&&INICIO_FUNC[f.id])||INICIO_SISTEMA;
+    const saldoPorMesTotal={};
+    let saldoAcumTotal=0;
+    Object.keys(fonte).sort().forEach(d=>{
+      const dt=new Date(d+'T12:00:00');
+      if(dt>ontem60||d<inicioStrT)return;
+      const r=fonte[d];
+      if(!r||!r.entrada||!r.saida)return;
+      const s=calcSaldoComTolerancia(calcHoras(r),jornadaDia(d,f.id));
+      saldoAcumTotal+=s;
+      const mk=d.slice(0,7);
+      saldoPorMesTotal[mk]=(saldoPorMesTotal[mk]||0)+s;
+    });
+    folgasCompensarCache.forEach(ds=>{
+      const dt=new Date(ds+'T12:00:00');
+      if(dt>ontem60||ds<inicioStrT)return;
+      const jd=jornadaDia(ds,f.id)*60;
+      saldoAcumTotal-=jd;
+      const mk=ds.slice(0,7);
+      saldoPorMesTotal[mk]=(saldoPorMesTotal[mk]||0)-jd;
+    });
+    compsF.forEach(cp=>{
+      const dt=new Date(cp.data+'T12:00:00');
+      if(dt>ontem60||cp.data<inicioStrT)return;
+      saldoAcumTotal+=cp.minutos;
+      const mk=cp.data.slice(0,7);
+      saldoPorMesTotal[mk]=(saldoPorMesTotal[mk]||0)+cp.minutos;
+    });
+
     // aceite do funcionário para o mês
     const aceiteMes = (window._aceitesCache && window._aceitesCache[f.id+'_'+month]) || null;
 
     resultado.push({
       f, linhas,
-      resumo:{totalTrab,totalPrev,saldoTotal,totalFaltas,totalEditados,saldoPorMes60,saldoAcum60:Math.round(saldoAcum60),aceite:aceiteMes}
+      resumo:{totalTrab,totalPrev,saldoTotal,totalFaltas,totalEditados,saldoPorMes60,saldoAcum60:Math.round(saldoAcum60),saldoPorMesTotal,saldoAcumTotal:Math.round(saldoAcumTotal),aceite:aceiteMes}
     });
   });
 
@@ -1965,8 +1995,10 @@ function gerarPDF(resultado, titulo, subtitulo){
 
     // ── BLOCO PRINCIPAL: SALDO DO MÊS (destaque) ──
     let finalY=doc.lastAutoTable.finalY+6;
-    // se o fechamento + 60 dias + aceite não couberem na página, quebra para a próxima
-    if(finalY + 92 > 202){ doc.addPage(); finalY = 20; }
+    const _nMesesTot=Object.keys(resumo.saldoPorMesTotal||{}).length||1;
+    const _bancoH=16+_nMesesTot*7+4;
+    // se o fechamento + banco + aceite não couberem na página, quebra para a próxima
+    if(finalY + (36+_bancoH+34) > 202){ doc.addPage(); finalY = 20; }
     const saldoMesMin=Math.round(resumo.saldoTotal*60);
     const devMes = saldoMesMin < 0;
     const scMes = saldoMesMin>0?[22,120,60]:saldoMesMin<0?[196,30,32]:[100,100,100];
@@ -2017,51 +2049,55 @@ function gerarPDF(resultado, titulo, subtitulo){
       doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(60,60,60);
     }
 
-    // ── BLOCO SECUNDÁRIO: retrospectiva 60 dias (apoio para conciliação) ──
+    // ── BANCO DE HORAS ACUMULADO (total, por mês, com prazo de compensação) ──
     const retY=finalY+36;
-    doc.setFillColor(252,252,252);
-    doc.rect(10,retY,277,24,'F');
-    doc.setDrawColor(210,210,210);
-    doc.setLineWidth(0.2);
-    doc.rect(10,retY,277,24,'S');
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(120,120,120);
-    doc.text('BANCO DE HORAS — REFERÊNCIA PARA CONCILIAÇÃO (últimos 60 dias)',14,retY+6);
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(7);
-    doc.setTextColor(140,140,140);
-    doc.text('Valor informativo para conferência com o controle interno. Não substitui o saldo do mês acima.',14,retY+11);
-
     const mesesLbl=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-    const mesesKeys=Object.keys(resumo.saldoPorMes60).sort();
-    let xPos=14;
-    doc.setFontSize(8);
-    if(mesesKeys.length===0){
-      doc.setTextColor(140,140,140);
-      doc.text('Sem movimentação nos últimos 60 dias.',14,retY+19);
+    const mesesTotKeys=Object.keys(resumo.saldoPorMesTotal).sort();
+    const nLinhas=Math.max(mesesTotKeys.length,1);
+    const bancoH=16+nLinhas*7+4;
+    doc.setFillColor(252,252,252);
+    doc.rect(10,retY,277,bancoH,'F');
+    doc.setDrawColor(210,210,210);doc.setLineWidth(0.2);
+    doc.rect(10,retY,277,bancoH,'S');
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(120,120,120);
+    doc.text('BANCO DE HORAS — ACUMULADO (desde a admissão)',14,retY+6);
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(140,140,140);
+    doc.text('Prazo de compensacao: 60 dias apos o mes. "Prazo passou" = compensar o quanto antes com a gestao.',14,retY+11);
+    const hojeB=new Date();hojeB.setHours(0,0,0,0);
+    let ly=retY+18;
+    if(mesesTotKeys.length===0){
+      doc.setFontSize(8);doc.setTextColor(140,140,140);
+      doc.text('Sem movimentacao registrada.',14,ly);
     } else {
-      mesesKeys.forEach(mk=>{
+      mesesTotKeys.forEach(mk=>{
         const [yy,mm]=mk.split('-');
-        const s=Math.round(resumo.saldoPorMes60[mk]);
+        const s=Math.round(resumo.saldoPorMesTotal[mk]);
         const cor=s>0?[22,120,60]:s<0?[196,30,32]:[120,120,120];
-        doc.setFont('helvetica','normal');doc.setTextColor(110,110,110);
-        doc.text(mesesLbl[parseInt(mm)-1]+'/'+yy+':',xPos,retY+19);
+        doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(110,110,110);
+        doc.text(mesesLbl[parseInt(mm)-1]+'/'+yy+':',14,ly);
         doc.setFont('helvetica','bold');doc.setTextColor(...cor);
-        doc.text((s>0?'+':s<0?'-':'')+minToHHMM(Math.abs(s)),xPos+16,retY+19);
-        xPos+=48;
+        doc.text(s===0?'em dia':((s>0?'+':'-')+minToHHMM(Math.abs(s))),42,ly);
+        if(s!==0){
+          const ultimo=new Date(parseInt(yy),parseInt(mm),0);
+          const prazo=new Date(ultimo);prazo.setDate(prazo.getDate()+60);
+          const passou=prazo<hojeB;
+          const pd=String(prazo.getDate()).padStart(2,'0')+'/'+String(prazo.getMonth()+1).padStart(2,'0')+'/'+prazo.getFullYear();
+          doc.setFont('helvetica','normal');doc.setFontSize(7.5);
+          doc.setTextColor(passou?196:140,passou?30:140,passou?32:140);
+          doc.text((s<0?'compensar ate ':'usar ate ')+pd+(passou?'  (prazo passou)':''),82,ly);
+        }
+        ly+=7;
       });
     }
-    // acumulado 60 dias à direita
-    const scAcum=resumo.saldoAcum60>0?[22,120,60]:resumo.saldoAcum60<0?[196,30,32]:[120,120,120];
-    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(110,110,110);
-    doc.text('Acumulado 60 dias:',287-58,retY+19,{align:'right'});
-    doc.setTextColor(...scAcum);
-    const acumTxt=(resumo.saldoAcum60>0?'+':resumo.saldoAcum60<0?'-':'')+minToHHMM(Math.abs(resumo.saldoAcum60));
-    doc.text(acumTxt,287-14,retY+19,{align:'right'});
+    const scAcum=resumo.saldoAcumTotal>0?[22,120,60]:resumo.saldoAcumTotal<0?[196,30,32]:[120,120,120];
+    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(90,90,90);
+    doc.text('ACUMULADO TOTAL',287-14,retY+17,{align:'right'});
+    doc.setTextColor(...scAcum);doc.setFontSize(15);
+    const acumTxt=(resumo.saldoAcumTotal>0?'+':resumo.saldoAcumTotal<0?'-':'')+minToHHMM(Math.abs(resumo.saldoAcumTotal));
+    doc.text(acumTxt,287-14,retY+29,{align:'right'});
 
     // bloco de aceite / assinatura do funcionário
-    const aceiteY=retY+32;
+    const aceiteY=retY+bancoH+8;
     const aceite=resumo.aceite;
     if(aceite){
       // aceite digital registrado
